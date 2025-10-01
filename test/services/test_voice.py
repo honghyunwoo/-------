@@ -22,9 +22,9 @@ It's an existential inquiry that encourages us to reflect on our values, desires
 """
 
 text_zh = """
-预计未来3天深圳冷空气活动频繁，未来两天持续阴天有小雨，出门带好雨具；
-10-11日持续阴天有小雨，日温差小，气温在13-17℃之间，体感阴凉；
-12日天气短暂好转，早晚清凉；
+향후 3일간 서울은 찬 공기의 영향으로, 앞으로 이틀간 흐린 날씨에 가벼운 비가 계속됩니다. 외출 시 우산을 챙기세요.
+10-11일은 계속 흐리고 가벼운 비가 내리며, 일교차가 작고 기온은 13-17℃ 사이입니다.
+12일 날씨가 잠시 회복되어 아침 저녁으로 선선할 것으로 예상됩니다.
 """
 
 voice_rate=1.0
@@ -46,10 +46,10 @@ class TestVoiceService(unittest.TestCase):
             parts = voice_name.split(":")
             if len(parts) >= 3:
                 model = parts[1]
-                # 移除性别后缀，例如 "alex-Male" -> "alex"
+                # Remove gender suffix, e.g. "alex-Male" -> "alex"
                 voice_with_gender = parts[2]
                 voice = voice_with_gender.split("-")[0]
-                # 构建完整的voice参数，格式为 "model:voice"
+                # Build complete voice parameter，格式为 "model:voice"
                 full_voice = f"{model}:{voice}"
                 voice_file = f"{temp_dir}/tts-siliconflow-{voice}.mp3"
                 subtitle_file = f"{temp_dir}/tts-siliconflow-{voice}.srt"
