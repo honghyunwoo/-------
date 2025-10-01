@@ -1,19 +1,111 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>MoneyPrinterTurbo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>올빼미 AI 영상 스튜디오</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .owl-icon {
+            text-align: center;
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+        .tagline {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        .features {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        .feature-item {
+            margin: 15px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        .feature-item:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+            font-size: 1.5em;
+        }
+        .cta {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .button {
+            display: inline-block;
+            background: #fff;
+            color: #667eea;
+            padding: 15px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: transform 0.3s;
+        }
+        .button:hover {
+            transform: scale(1.05);
+        }
+    </style>
 </head>
 <body>
-<h1>MoneyPrinterTurbo</h1>
-<a href="https://github.com/harry0703/MoneyPrinterTurbo">https://github.com/harry0703/MoneyPrinterTurbo</a>
-<p>
-    只需提供一个视频 主题 或 关键词 ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
-</p>
+    <div class="container">
+        <div class="owl-icon">🦉</div>
+        <h1>올빼미 AI 영상 스튜디오</h1>
+        <p class="tagline">AI 기반 자동 영상 제작 플랫폼 - 24시간 함께하는 프리미엄 영상 제작 서비스</p>
 
-<p>
-    Simply provide a topic or keyword for a video, and it will automatically generate the video copy, video materials,
-    video subtitles, and video background music before synthesizing a high-definition short video.
-</p>
+        <div class="features">
+            <h2>🎬 주요 기능</h2>
+            <div class="feature-item">
+                <strong>자동 스크립트 생성</strong><br>
+                키워드만 입력하면 AI가 매력적인 영상 대본을 자동으로 작성합니다.
+            </div>
+            <div class="feature-item">
+                <strong>스마트 영상 소재 수집</strong><br>
+                Pexels, Pixabay에서 주제에 맞는 고품질 영상 클립을 자동 검색합니다.
+            </div>
+            <div class="feature-item">
+                <strong>전문가급 자막 생성</strong><br>
+                Edge TTS, Whisper 기술로 정확하고 자연스러운 자막을 생성합니다.
+            </div>
+            <div class="feature-item">
+                <strong>고품질 음성 합성</strong><br>
+                Azure TTS, SiliconFlow로 생동감 있는 나레이션을 제작합니다.
+            </div>
+            <div class="feature-item">
+                <strong>원클릭 자동 편집</strong><br>
+                수집된 모든 소재를 자동으로 편집하여 완성된 영상으로 출력합니다.
+            </div>
+        </div>
+
+        <div class="cta">
+            <a href="/webui" class="button">영상 제작 시작하기 →</a>
+        </div>
+    </div>
 </body>
 </html>
