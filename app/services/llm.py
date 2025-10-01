@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import requests
-from typing import List
+from typing import List, Optional, Dict
 
 import g4f
 from loguru import logger
@@ -10,6 +10,7 @@ from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
 from app.config import config
+from app.services.youtube_trend import analyze_youtube_trends
 
 _max_retries = 5
 
@@ -427,6 +428,148 @@ Please note that you must use English for generating video search terms; Chinese
 
     logger.success(f"completed: \n{search_terms}")
     return search_terms
+
+
+def generate_viral_script(
+    video_subject: str,
+    language: str = "ko",
+    paragraph_number: int = 1,
+    use_trend_analysis: bool = True,
+    region_code: str = "KR"
+) -> Dict[str, any]:
+    """
+    유튜브 트렌드 분석을 활용한 바이럴 스크립트 생성
+
+    Args:
+        video_subject: 영상 주제
+        language: 언어 코드
+        paragraph_number: 단락 수
+        use_trend_analysis: 트렌드 분석 사용 여부
+        region_code: 국가 코드
+
+    Returns:
+        스크립트 및 메타데이터가 포함된 딕셔너리
+    """
+    result = {
+        "script": "",
+        "viral_keywords": [],
+        "title_suggestions": [],
+        "hooks": [],
+        "metadata": {}
+    }
+
+    # 트렌드 분석 수행
+    trend_data = None
+    if use_trend_analysis:
+        try:
+            youtube_api_key = config.app.get("youtube_api_key", "")
+            trend_data = analyze_youtube_trends(
+                topic=video_subject,
+                api_key=youtube_api_key if youtube_api_key else None,
+                region_code=region_code
+            )
+            logger.info(f"Trend analysis completed for: {video_subject}")
+        except Exception as e:
+            logger.warning(f"Trend analysis failed, using standard generation: {e}")
+            trend_data = None
+
+    # 트렌드 데이터를 활용한 프롬프트 개선
+    if trend_data:
+        viral_keywords = trend_data.get("viral_keywords", [])
+        hooks = trend_data.get("content_hooks", [])
+
+        # 바이럴 키워드를 포함한 개선된 프롬프트
+        viral_keywords_str = ", ".join(viral_keywords[:5]) if viral_keywords else ""
+        hook = hooks[0] if hooks else ""
+
+        enhanced_prompt = f"""
+# Role: Viral Video Script Generator
+
+## Goals:
+Generate a highly engaging, viral-worthy script for a video about "{video_subject}".
+
+## Viral Strategy:
+- Incorporate these trending keywords naturally: {viral_keywords_str}
+- Start with an attention-grabbing hook: "{hook}"
+- Use storytelling techniques that create curiosity and emotional engagement
+- Include surprising facts or unique perspectives
+- End with a strong call-to-action or memorable conclusion
+
+## Constraints:
+1. Return the script as a string with {paragraph_number} paragraphs
+2. Do not reference this prompt in your response
+3. Get straight to the point with a powerful opening
+4. No markdown or formatting - raw script content only
+5. Do not include "voiceover", "narrator" or similar indicators
+6. Never mention the prompt itself or script structure
+7. Respond in {language} language
+
+## Style Guidelines:
+- Use conversational, energetic tone
+- Include moments of surprise or revelation
+- Create curiosity gaps that keep viewers watching
+- Use specific examples and vivid descriptions
+
+# Video Subject: {video_subject}
+# Paragraphs: {paragraph_number}
+""".strip()
+    else:
+        # 기본 프롬프트
+        enhanced_prompt = f"""
+# Role: Video Script Generator
+
+## Goals:
+Generate an engaging script for a video about "{video_subject}".
+
+## Constraints:
+1. Return the script with {paragraph_number} paragraphs
+2. Do not reference this prompt
+3. Get straight to the point
+4. No markdown or formatting
+5. Raw content only
+6. Respond in {language} language
+
+# Video Subject: {video_subject}
+# Paragraphs: {paragraph_number}
+""".strip()
+
+    # 스크립트 생성
+    final_script = ""
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt=enhanced_prompt)
+            if response:
+                # Clean the script
+                response = response.replace("*", "").replace("#", "")
+                response = re.sub(r"\[.*\]", "", response)
+                response = re.sub(r"\(.*\)", "", response)
+                final_script = response.strip()
+
+            if final_script and "Daily quota exhausted" not in final_script:
+                break
+
+        except Exception as e:
+            logger.error(f"Failed to generate viral script: {e}")
+
+        if i < _max_retries - 1:
+            logger.warning(f"Retrying script generation... {i + 1}/{_max_retries}")
+
+    # 결과 구성
+    result["script"] = final_script
+
+    if trend_data:
+        result["viral_keywords"] = trend_data.get("viral_keywords", [])
+        result["title_suggestions"] = trend_data.get("title_suggestions", [])
+        result["hooks"] = trend_data.get("content_hooks", [])
+        result["recommended_duration"] = trend_data.get("recommended_duration_seconds", 90)
+        result["metadata"] = trend_data.get("metadata", {})
+
+    if final_script:
+        logger.success(f"Viral script generated successfully")
+    else:
+        logger.error("Failed to generate viral script")
+
+    return result
 
 
 if __name__ == "__main__":
