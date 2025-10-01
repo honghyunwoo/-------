@@ -10,7 +10,7 @@ config_file = f"{root_dir}/config.toml"
 
 
 def load_config():
-    # fix: IsADirectoryError: [Errno 21] Is a directory: '/MoneyPrinterTurbo/config.toml'
+    # 수정: 설정 파일이 디렉토리인 경우 처리
     if os.path.isdir(config_file):
         shutil.rmtree(config_file)
 
@@ -63,12 +63,12 @@ hostname = socket.gethostname()
 log_level = _cfg.get("log_level", "DEBUG")
 listen_host = _cfg.get("listen_host", "0.0.0.0")
 listen_port = _cfg.get("listen_port", 8080)
-project_name = _cfg.get("project_name", "MoneyPrinterTurbo")
+project_name = _cfg.get("project_name", "올빼미 AI 영상 스튜디오")
 project_description = _cfg.get(
     "project_description",
-    "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>",
+    "AI 기반 자동 영상 제작 플랫폼 - 24시간 함께하는 프리미엄 영상 제작 서비스",
 )
-project_version = _cfg.get("project_version", "1.2.6")
+project_version = _cfg.get("project_version", "1.0.0")
 reload_debug = False
 
 imagemagick_path = app.get("imagemagick_path", "")
@@ -81,7 +81,7 @@ if ffmpeg_path and os.path.isfile(ffmpeg_path):
 
 logger.info(f"{project_name} v{project_version}")
 
-# config 객체 생성 (asgi.py에서 사용)
+# Config 객체 생성 (프로그램 전체 설정 관리)
 class Config:
     def __init__(self):
         self.project_name = project_name
@@ -90,7 +90,7 @@ class Config:
         self.log_level = log_level
         self.listen_host = listen_host
         self.listen_port = listen_port
-        # 기존 코드와 호환성을 위해 추가
+        # 설정 데이터 저장 (앱 전체에서 사용)
         self.app = app
         self.whisper = whisper
         self.proxy = proxy
