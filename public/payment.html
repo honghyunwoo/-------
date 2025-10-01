@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>올빼미 AI 영상 스튜디오 - 결제</title>
+    <script src="https://js.tosspayments.com/v1"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 1200px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .pricing-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            padding: 40px;
+        }
+
+        .pricing-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .pricing-card.recommended {
+            border-color: #667eea;
+            transform: scale(1.05);
+        }
+
+        .pricing-card.selected {
+            border-color: #764ba2;
+            background: #f8f9ff;
+        }
+
+        .badge {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 20px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .plan-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .price {
+            font-size: 48px;
+            font-weight: bold;
+            color: #333;
+            margin: 20px 0;
+        }
+
+        .price small {
+            font-size: 16px;
+            color: #666;
+        }
+
+        .features {
+            list-style: none;
+            padding: 20px 0;
+            margin: 20px 0;
+            border-top: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .features li {
+            padding: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .features li:before {
+            content: "✅";
+            margin-right: 10px;
+        }
+
+        .features li.disabled {
+            color: #999;
+            text-decoration: line-through;
+        }
+
+        .features li.disabled:before {
+            content: "❌";
+        }
+
+        .select-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .select-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .payment-section {
+            padding: 40px;
+            background: #f8f9ff;
+            display: none;
+        }
+
+        .payment-section.active {
+            display: block;
+        }
+
+        .payment-form {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .payment-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 18px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .payment-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+        }
+
+        .payment-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            color: #e74c3c;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🦉 올빼미 AI 영상 스튜디오</h1>
+            <p>AI가 24시간 함께 만드는 프리미엄 영상</p>
+        </div>
+
+        <div class="pricing-cards">
+            <div class="pricing-card" data-plan="basic" data-price="29000">
+                <div class="plan-name">베이직</div>
+                <div class="price">29,000<small>원/월</small></div>
+                <ul class="features">
+                    <li>월 20개 영상 생성</li>
+                    <li>고급 템플릿 사용</li>
+                    <li class="disabled">워터마크 제거</li>
+                    <li class="disabled">API 액세스</li>
+                    <li class="disabled">전용 지원</li>
+                </ul>
+                <button class="select-btn" onclick="selectPlan('basic', 29000)">선택하기</button>
+            </div>
+
+            <div class="pricing-card recommended" data-plan="pro" data-price="99000">
+                <span class="badge">인기</span>
+                <div class="plan-name">프로</div>
+                <div class="price">99,000<small>원/월</small></div>
+                <ul class="features">
+                    <li>월 100개 영상 생성</li>
+                    <li>고급 템플릿 사용</li>
+                    <li>워터마크 제거</li>
+                    <li class="disabled">API 액세스</li>
+                    <li class="disabled">전용 지원</li>
+                </ul>
+                <button class="select-btn" onclick="selectPlan('pro', 99000)">선택하기</button>
+            </div>
+
+            <div class="pricing-card" data-plan="business" data-price="299000">
+                <div class="plan-name">비즈니스</div>
+                <div class="price">299,000<small>원/월</small></div>
+                <ul class="features">
+                    <li>무제한 영상 생성</li>
+                    <li>고급 템플릿 사용</li>
+                    <li>워터마크 제거</li>
+                    <li>API 액세스</li>
+                    <li>전용 지원</li>
+                </ul>
+                <button class="select-btn" onclick="selectPlan('business', 299000)">선택하기</button>
+            </div>
+        </div>
+
+        <div class="payment-section" id="paymentSection">
+            <h2 style="text-align: center; margin-bottom: 30px;">결제 정보 입력</h2>
+            <div class="payment-form">
+                <div class="form-group">
+                    <label for="customerName">이름</label>
+                    <input type="text" id="customerName" placeholder="홍길동" required>
+                </div>
+                <div class="form-group">
+                    <label for="customerEmail">이메일</label>
+                    <input type="email" id="customerEmail" placeholder="example@owl-studio.kr" required>
+                </div>
+                <div class="form-group">
+                    <label for="customerPhone">전화번호</label>
+                    <input type="tel" id="customerPhone" placeholder="010-1234-5678" required>
+                </div>
+                <button class="payment-button" onclick="processPayment()">
+                    <span id="paymentAmount">0</span>원 결제하기
+                </button>
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>결제 처리 중...</p>
+                </div>
+                <div class="error-message" id="errorMessage"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 토스페이먼츠 클라이언트 키
+        const clientKey = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq';
+        const tossPayments = TossPayments(clientKey);
+
+        let selectedPlan = null;
+        let selectedPrice = 0;
+
+        function selectPlan(plan, price) {
+            // 모든 카드에서 selected 클래스 제거
+            document.querySelectorAll('.pricing-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // 선택한 카드에 selected 클래스 추가
+            document.querySelector(`[data-plan="${plan}"]`).classList.add('selected');
+
+            // 결제 섹션 표시
+            document.getElementById('paymentSection').classList.add('active');
+
+            // 선택한 플랜 정보 저장
+            selectedPlan = plan;
+            selectedPrice = price;
+
+            // 결제 금액 표시
+            document.getElementById('paymentAmount').textContent = price.toLocaleString();
+
+            // 결제 섹션으로 스크롤
+            document.getElementById('paymentSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function processPayment() {
+            const customerName = document.getElementById('customerName').value;
+            const customerEmail = document.getElementById('customerEmail').value;
+            const customerPhone = document.getElementById('customerPhone').value;
+
+            // 입력값 검증
+            if (!customerName || !customerEmail || !customerPhone) {
+                showError('모든 필드를 입력해주세요.');
+                return;
+            }
+
+            // 이메일 형식 검증
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(customerEmail)) {
+                showError('올바른 이메일 주소를 입력해주세요.');
+                return;
+            }
+
+            // 로딩 표시
+            document.getElementById('loading').classList.add('active');
+            document.querySelector('.payment-button').disabled = true;
+
+            try {
+                // 토스페이먼츠 결제창 호출
+                await tossPayments.requestPayment('카드', {
+                    amount: selectedPrice,
+                    orderId: `ORDER_${Date.now()}_${selectedPlan}`,
+                    orderName: `올빼미 AI 영상 스튜디오 - ${selectedPlan.toUpperCase()} 플랜`,
+                    customerName: customerName,
+                    customerEmail: customerEmail,
+                    customerMobilePhone: customerPhone.replace(/-/g, ''),
+                    successUrl: `${window.location.origin}/payment-success?plan=${selectedPlan}`,
+                    failUrl: `${window.location.origin}/payment-fail`,
+                });
+            } catch (error) {
+                // 에러 처리
+                showError(error.message || '결제 처리 중 오류가 발생했습니다.');
+                console.error('Payment error:', error);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+                document.querySelector('.payment-button').disabled = false;
+            }
+        }
+
+        function showError(message) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.classList.add('active');
+
+            setTimeout(() => {
+                errorElement.classList.remove('active');
+            }, 5000);
+        }
+
+        // URL 파라미터에서 사용자 정보 자동 입력 (로그인 상태인 경우)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('email')) {
+            document.getElementById('customerEmail').value = urlParams.get('email');
+        }
+        if (urlParams.has('name')) {
+            document.getElementById('customerName').value = urlParams.get('name');
+        }
+    </script>
+</body>
+</html>
