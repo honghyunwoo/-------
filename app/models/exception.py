@@ -1,28 +1,30 @@
-import traceback
-from typing import Any
-
-from loguru import logger
-
-
-class HttpException(Exception):
-    def __init__(
-        self, task_id: str, status_code: int, message: str = "", data: Any = None
-    ):
+class MoneyPrinterTurboException(Exception):
+    """Base exception for the application."""
+    def __init__(self, message="An unexpected error occurred."):
         self.message = message
-        self.status_code = status_code
-        self.data = data
-        # Retrieve the exception stack trace information.
-        tb_str = traceback.format_exc().strip()
-        if not tb_str or tb_str == "NoneType: None":
-            msg = f"HttpException: {status_code}, {task_id}, {message}"
-        else:
-            msg = f"HttpException: {status_code}, {task_id}, {message}\n{tb_str}"
-
-        if status_code == 400:
-            logger.warning(msg)
-        else:
-            logger.error(msg)
+        super().__init__(self.message)
 
 
-class FileNotFoundException(Exception):
+class VideoProcessingError(MoneyPrinterTurboException):
+    """Exception raised for errors in the video processing."""
+    pass
+
+
+class MaterialError(MoneyPrinterTurboException):
+    """Exception raised for errors related to material downloading or processing."""
+    pass
+
+
+class LLMError(MoneyPrinterTurboException):
+    """Exception raised for errors related to the LLM service."""
+    pass
+
+
+class TTSError(MoneyPrinterTurboException):
+    """Exception raised for errors in the Text-to-Speech service."""
+    pass
+
+
+class SubtitleError(MoneyPrinterTurboException):
+    """Exception raised for errors in subtitle generation or processing."""
     pass

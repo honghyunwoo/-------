@@ -9,7 +9,9 @@ from typing import Optional
 from datetime import datetime, timedelta
 import secrets
 from jose import jwt
+from loguru import logger
 
+from app.config import config
 from app.services.auth import SECRET_KEY, ALGORITHM
 
 # 이메일 설정
@@ -32,15 +34,19 @@ def send_email(to_email: str, subject: str, html_body: str) -> bool:
         msg.attach(html_part)
 
         # Gmail SMTP 설정
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            if SMTP_PASSWORD:  # 비밀번호가 설정된 경우에만 로그인
-                server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
+        server.starttls()
+        if SMTP_PASSWORD:  # 비밀번호가 설정된 경우에만 로그인
+            server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
 
         return True
+    except smtplib.SMTPException as e:
+        logger.error(f"SMTP error occurred: {e}")
+        return False
     except Exception as e:
-        print(f"이메일 발송 실패: {e}")
+        logger.exception(f"An unexpected error occurred while sending email to {to_email}")
         return False
 
 def generate_verification_token(email: str) -> str:
@@ -64,7 +70,8 @@ def verify_token(token: str) -> Optional[str]:
 
 def send_verification_email(email: str, token: str) -> bool:
     """회원가입 인증 메일 발송"""
-    verification_link = f"http://localhost:8080/auth/verify?token={token}"
+    app_base_url = config.app.get("app_base_url", "http://localhost:8080")
+    verification_link = f"{app_base_url}/api/v1/auth/verify-email?token={token}"
 
     html_body = f"""
     <!DOCTYPE html>
@@ -112,7 +119,8 @@ def send_verification_email(email: str, token: str) -> bool:
 
 def send_password_reset_email(email: str, token: str) -> bool:
     """비밀번호 재설정 메일 발송"""
-    reset_link = f"http://localhost:8501/reset-password?token={token}"
+    app_base_url = config.app.get("app_base_url", "http://localhost:8080").replace("8080", "8501") # Assume UI is on 8501
+    reset_link = f"{app_base_url}/reset-password?token={token}"
 
     html_body = f"""
     <!DOCTYPE html>

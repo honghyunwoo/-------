@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, func, LargeBinary
 from sqlalchemy.orm import relationship
 from app.database.connection import Base
 
@@ -17,6 +17,11 @@ class User(Base):
     # Commercial fields
     subscription_plan = Column(String, default="free")
     credits = Column(Integer, default=3)  # Free users get 3 credits
+
+    # User-provided API keys (encrypted)
+    openai_api_key = Column(LargeBinary, nullable=True)
+    pexels_api_keys = Column(LargeBinary, nullable=True)
+    pixabay_api_keys = Column(LargeBinary, nullable=True)
 
     # Relationships
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")

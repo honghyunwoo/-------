@@ -1,6 +1,5 @@
 from fastapi import APIRouter
 
-
 def new_router(dependencies=None):
     router = APIRouter()
     router.tags = ["V1"]

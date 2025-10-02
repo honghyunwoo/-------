@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -6,12 +7,21 @@ import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from loguru import logger
 
 from app.config.config import auth
 from app.database.connection import get_db
 from app.models.user import User
 
-SECRET_KEY = auth.get("secret_key", "your-default-secret-key")
+DEFAULT_SECRET_KEY = "your-default-secret-key"
+SECRET_KEY = auth.get("secret_key", DEFAULT_SECRET_KEY)
+
+if SECRET_KEY == DEFAULT_SECRET_KEY:
+    logger.warning("Using default JWT secret key. This is insecure. Generating a temporary key.")
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning("A temporary secret key has been generated. Please add the following to your config.toml under [auth]:")
+    logger.warning(f'secret_key = "{SECRET_KEY}"')
+
 ALGORITHM = auth.get("algorithm", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = auth.get("access_token_expire_minutes", 30)
 

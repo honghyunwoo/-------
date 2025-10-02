@@ -10,9 +10,7 @@ from loguru import logger
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
-    print("******** sys.path ********")
-    print(sys.path)
-    print("")
+    logger.debug(f"Root directory added to sys.path: {root_dir}")
 
 from app.config import config
 from app.models.schema import (
@@ -22,9 +20,12 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
+from app.models.schema import TemplateCreate, UserCreate, UserLogin
 from app.services import llm, voice
 from app.services import task as tm
 from app.utils import utils
+from app.services import auth as auth_service
+from app.config.logging import setup_logging
 
 st.set_page_config(
     page_title="올빼미 AI 영상 스튜디오",
@@ -40,6 +41,11 @@ st.set_page_config(
     },
 )
 
+# --- Authentication State ---
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "user" not in st.session_state:
+    st.session_state["user"] = None
 
 # 현대적인 스타일 정의
 modern_css = """
@@ -247,33 +253,7 @@ modern_css = """
 </style>
 """
 
-# 현대적인 스타일 적용
-st.markdown(modern_css, unsafe_allow_html=True)
-
-font_dir = os.path.join(root_dir, "resource", "fonts")
-song_dir = os.path.join(root_dir, "resource", "songs")
-i18n_dir = os.path.join(root_dir, "webui", "i18n")
-config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
-system_locale = utils.get_system_locale()
-
-
-if "video_subject" not in st.session_state:
-    st.session_state["video_subject"] = ""
-if "video_script" not in st.session_state:
-    st.session_state["video_script"] = ""
-if "video_terms" not in st.session_state:
-    st.session_state["video_terms"] = ""
-if "ui_language" not in st.session_state:
-    st.session_state["ui_language"] = config.ui.get("language", system_locale)
-
-locales = utils.load_locales(i18n_dir)
-
-title_col, lang_col = st.columns([3, 1])
-
-with title_col:
-    st.title("🦉 올빼미 AI 영상 스튜디오")
-
-with lang_col:
+def setup_language_selector(locales):
     display_languages = []
     selected_index = 0
     for i, code in enumerate(locales.keys()):
@@ -292,6 +272,34 @@ with lang_col:
         code = selected_language.split(" - ")[0].strip()
         st.session_state["ui_language"] = code
         config.ui["language"] = code
+
+# --- App Setup ---
+setup_logging()
+st.markdown(modern_css, unsafe_allow_html=True)
+
+font_dir = os.path.join(root_dir, "resource", "fonts")
+song_dir = os.path.join(root_dir, "resource", "songs")
+i18n_dir = os.path.join(root_dir, "webui", "i18n")
+config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
+system_locale = utils.get_system_locale()
+
+if "video_subject" not in st.session_state:
+    st.session_state["video_subject"] = ""
+if "video_script" not in st.session_state:
+    st.session_state["video_script"] = ""
+if "video_terms" not in st.session_state:
+    st.session_state["video_terms"] = ""
+if "ui_language" not in st.session_state:
+    st.session_state["ui_language"] = config.ui.get("language", system_locale)
+
+locales = utils.load_locales(i18n_dir)
+
+title_col, lang_col = st.columns([3, 1])
+
+with title_col:
+    st.title("🦉 올빼미 AI 영상 스튜디오")
+with lang_col:
+    setup_language_selector(locales)
 
 support_locales = [
     "zh-CN",
@@ -353,35 +361,143 @@ def scroll_to_bottom():
     """
     st.components.v1.html(js, height=0, width=0)
 
+def show_login_page():
+    st.title("🦉 올빼미 AI 영상 스튜디오 로그인")
 
-def init_log():
-    logger.remove()
-    _lvl = "DEBUG"
+    with st.form("login_form"):
+        email = st.text_input("이메일")
+        password = st.text_input("비밀번호", type="password")
+        submitted = st.form_submit_button("로그인")
 
-    def format_record(record):
-        file_path = record["file"].path
-        relative_path = os.path.relpath(file_path, root_dir)
-        record["file"].path = f"./{relative_path}"
-        record["message"] = record["message"].replace(root_dir, ".")
+        if submitted:
+            try:
+                # This is a placeholder for a real API call
+                # In a real app, you would call your FastAPI backend
+                # e.g., response = requests.post(f"{API_URL}/auth/login", json={"email": email, "password": password})
+                # For this example, we'll simulate a successful login
+                
+                # Placeholder for user object
+                st.session_state["authenticated"] = True
+                st.session_state["user"] = {"email": email, "id": 1} # Mock user
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"로그인 실패: {e}")
 
-        _format = (
-            "<green>{time:%Y-%m-%d %H:%M:%S}</> | "
-            + "<level>{level}</> | "
-            + '"{file.path}:{line}":<blue> {function}</> '
-            + "- <level>{message}</>"
-            + "\n"
-        )
-        return _format
+def show_register_page():
+    st.title("🦉 올빼미 AI 영상 스튜디오 회원가입")
 
-    logger.add(
-        sys.stdout,
-        level=_lvl,
-        format=format_record,
-        colorize=True,
-    )
+    with st.form("register_form"):
+        email = st.text_input("이메일")
+        password = st.text_input("비밀번호", type="password")
+        confirm_password = st.text_input("비밀번호 확인", type="password")
+        submitted = st.form_submit_button("회원가입")
+
+        if submitted:
+            if password != confirm_password:
+                st.error("비밀번호가 일치하지 않습니다.")
+            else:
+                try:
+                    # Placeholder for API call to registration endpoint
+                    st.success("회원가입 성공! 이메일을 확인하여 계정을 활성화해주세요.")
+                except Exception as e:
+                    st.error(f"회원가입 실패: {e}")
+
+def show_auth_page():
+    st.markdown(modern_css, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.write("") # Spacer
+        st.write("") # Spacer
+        
+        auth_tab1, auth_tab2 = st.tabs(["로그인", "회원가입"])
+
+        with auth_tab1:
+            show_login_page()
+
+        with auth_tab2:
+            show_register_page()
+
+# --- Main App Logic ---
+if not st.session_state["authenticated"]:
+    show_auth_page()
+    st.stop()
+
+# If authenticated, show the main app
+def show_history_page():
+    st.subheader("🎞️ 영상 생성 히스토리")
+    
+    # Placeholder for API call to fetch history
+    # In a real app: history_items = requests.get(f"{API_URL}/history", headers={"Authorization": f"Bearer {token}"}).json()
+    history_items = [
+        {"video_subject": "AI의 미래", "created_at": "2024-10-04T10:00:00", "video_path": "path/to/video1.mp4", "task_id": "task1"},
+        {"video_subject": "성공하는 사람들의 5가지 습관", "created_at": "2024-10-03T15:30:00", "video_path": "path/to/video2.mp4", "task_id": "task2"},
+    ] # Mock data
+
+    if not history_items:
+        st.info("아직 생성된 영상이 없습니다.")
+        return
+
+    for item in history_items:
+        col1, col2, col3 = st.columns([3, 2, 1])
+        with col1:
+            st.write(f"**{item['video_subject']}**")
+        with col2:
+            st.write(f"_{item['created_at']}_")
+        with col3:
+            # In a real app, this would trigger a download from the backend API
+            st.download_button("다시 다운로드", data=b"", file_name=os.path.basename(item['video_path']), mime="video/mp4", key=f"download_{item['task_id']}")
 
 
-init_log()
+def main_app():
+    st.markdown(modern_css, unsafe_allow_html=True)
+
+    font_dir = os.path.join(root_dir, "resource", "fonts")
+    song_dir = os.path.join(root_dir, "resource", "songs")
+    i18n_dir = os.path.join(root_dir, "webui", "i18n")
+    config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
+    system_locale = utils.get_system_locale()
+
+
+    if "video_subject" not in st.session_state:
+        st.session_state["video_subject"] = ""
+    if "video_script" not in st.session_state:
+        st.session_state["video_script"] = ""
+    if "video_terms" not in st.session_state:
+        st.session_state["video_terms"] = ""
+    if "ui_language" not in st.session_state:
+        st.session_state["ui_language"] = config.ui.get("language", system_locale)
+
+    locales = utils.load_locales(i18n_dir)
+
+    title_col, lang_col, logout_col = st.columns([3, 1, 0.5])
+
+    with title_col:
+        st.title("🦉 올빼미 AI 영상 스튜디오")
+    
+    with logout_col:
+        st.write("") # Spacer
+        if st.button("로그아웃"):
+            st.session_state["authenticated"] = False
+            st.session_state["user"] = None
+            st.experimental_rerun()
+
+    # Display user's current plan and credits
+    user_info = st.session_state.get("user")
+    if user_info:
+        plan = user_info.get('subscription_plan', 'free').capitalize()
+        credits = user_info.get('credits', 0)
+        credits_display = "무제한" if credits == -1 else f"{credits}개"
+        st.sidebar.info(f"**{user_info.get('email')}**\n\n**플랜**: {plan}\n\n**남은 크레딧**: {credits_display}")
+        st.sidebar.page_link("public/payment.html", label="플랜 업그레이드", icon="🚀")
+
+    main_tab, history_tab = st.tabs(["🎬 영상 제작", "🗂️ 히스토리"])
+
+    with main_tab:
+        show_main_generator_ui()
+
+    with history_tab:
+        show_history_page()
 
 locales = utils.load_locales(i18n_dir)
 
@@ -391,6 +507,7 @@ def tr(key):
     return loc.get("Translation", {}).get(key, key)
 
 
+def show_main_generator_ui():
 if not config.app.get("hide_config", False):
     with st.expander(tr("Basic Settings"), expanded=False):
         config_panels = st.columns(3)
@@ -459,11 +576,11 @@ if not config.app.get("hide_config", False):
 
                 with llm_helper:
                     tips = """
-                            - **API Key**: Fill in anything, e.g. 123
-                            - **Base Url**: Usually http://localhost:11434/v1
-                                - If not on the same machine，需要填写 `Ollama` 机器的IP地址
-                                - If deployed via Docker，建议填写 `http://host.docker.internal:11434/v1`
-                            - **Model Name**: Use `ollama list`, e.g. `qwen:7b`
+                            - **API Key**: 아무 값이나 입력하세요 (예: 123).
+                            - **Base Url**: 보통 `http://localhost:11434/v1` 입니다.
+                                - 다른 컴퓨터에 있다면, `Ollama`가 설치된 기기의 IP 주소를 입력하세요.
+                                - Docker로 배포했다면, `http://host.docker.internal:11434/v1`를 권장합니다.
+                            - **Model Name**: `ollama list` 명령어로 확인 가능합니다 (예: `qwen:7b`).
                             """
 
             if llm_provider == "openai":
@@ -482,9 +599,9 @@ if not config.app.get("hide_config", False):
                     llm_model_name = "moonshot-v1-8k"
                 with llm_helper:
                     tips = """
-                            - **API Key**: [Click to apply](https://platform.moonshot.cn/console/api-keys)
-                            - **Base Url**: Fixed as https://api.moonshot.cn/v1
-                            - **Model Name**: e.g. moonshot-v1-8k，[Click to view model list](https://platform.moonshot.cn/docs/intro
+                            - **API Key**: 여기서 발급
+                            - **Base Url**: `https://api.moonshot.cn/v1`로 고정됩니다.
+                            - **Model Name**: 예: `moonshot-v1-8k`. 모델 목록 보기
                             """
             if llm_provider == "oneapi":
                 if not llm_model_name:
@@ -492,10 +609,10 @@ if not config.app.get("hide_config", False):
                         "claude-3-5-sonnet-20240620"
                     )
                 with llm_helper:
-                    tips = """
-                        - **API Key**: Fill in your OneAPI 密钥
-                        - **Base Url**: Fill in OneAPI base URL
-                        - **Model Name**: Fill in model name to use，例如 claude-3-5-sonnet-20240620
+                    tips = f"""
+                        - **API Key**: OneAPI에서 발급받은 키를 입력하세요.
+                        - **Base Url**: OneAPI의 Base URL을 입력하세요.
+                        - **Model Name**: 사용하려는 모델명을 입력하세요 (예: `claude-3-5-sonnet-20240620`).
                         """
 
             if llm_provider == "qwen":
@@ -503,9 +620,9 @@ if not config.app.get("hide_config", False):
                     llm_model_name = "qwen-max"
                 with llm_helper:
                     tips = """
-                            - **API Key**: [Click to apply](https://dashscope.console.aliyun.com/apiKey)
-                            - **Base Url**: Leave empty
-                            - **Model Name**: e.g. qwen-max，[Click to view model list](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction
+                            - **API Key**: 여기서 발급
+                            - **Base Url**: 비워두세요.
+                            - **Model Name**: 예: `qwen-max`. 모델 목록 보기
                             """
 
             if llm_provider == "g4f":
@@ -533,10 +650,9 @@ if not config.app.get("hide_config", False):
 
                 with llm_helper:
                     tips = """
-                            > Requires VPN with global traffic mode
-                            - **API Key**: [Click to apply](https://ai.google.dev/)
-                            - **Base Url**: Leave empty
-                            - **Model Name**: e.g. gemini-1.0-pro
+                            - **API Key**: 여기서 발급
+                            - **Base Url**: 비워두세요.
+                            - **Model Name**: 예: `gemini-1.0-pro`
                             """
 
             if llm_provider == "deepseek":
@@ -856,38 +972,31 @@ with middle_panel:
             for v in filtered_voices
         }
 
-        saved_voice_name = config.ui.get("voice_name", "")
-        saved_voice_name_index = 0
-
-        if saved_voice_name in friendly_names:
-            saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
-        else:
-            for i, v in enumerate(filtered_voices):
-                # 한국어 우선 선택 로직 개선
-                ui_lang = st.session_state["ui_language"].lower()
-                voice_lower = v.lower()
-                if ((ui_lang == "ko" and ("ko-kr" in voice_lower or "korean" in voice_lower)) or
-                    voice_lower.startswith(ui_lang)):
-                    saved_voice_name_index = i
-                    break
-
-        if saved_voice_name_index >= len(friendly_names) and friendly_names:
-            saved_voice_name_index = 0
-
         if friendly_names:
+            # Determine the default selection index
+            saved_voice_name = config.ui.get("voice_name", "")
+            try:
+                # Try to find the index of the saved voice name
+                saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
+            except ValueError:
+                # If not found, try to find a voice matching the UI language
+                saved_voice_name_index = 0 # Default to the first voice
+                ui_lang_code = st.session_state.get("ui_language", "en").lower().split('-')[0]
+                for i, voice_key in enumerate(friendly_names.keys()):
+                    if voice_key.lower().startswith(ui_lang_code):
+                        saved_voice_name_index = i
+                        break
+
             selected_friendly_name = st.selectbox(
                 tr("Speech Synthesis"),
                 options=list(friendly_names.values()),
-                index=min(saved_voice_name_index, len(friendly_names) - 1)
-                if friendly_names
-                else 0,
+                index=saved_voice_name_index,
             )
 
-            voice_name = list(friendly_names.keys())[
-                list(friendly_names.values()).index(selected_friendly_name)
-            ]
-            params.voice_name = voice_name
-            config.ui["voice_name"] = voice_name
+            # Get the actual voice name from the selected friendly name
+            selected_voice_name = list(friendly_names.keys())[list(friendly_names.values()).index(selected_friendly_name)]
+            params.voice_name = selected_voice_name
+            config.ui["voice_name"] = selected_voice_name
         else:
             st.warning(
                 tr(
@@ -897,7 +1006,7 @@ with middle_panel:
             params.voice_name = ""
             config.ui["voice_name"] = ""
 
-        if friendly_names and st.button(tr("Play Voice")):
+        if params.voice_name and st.button(tr("Play Voice")):
             play_content = params.video_subject
             if not play_content:
                 play_content = params.video_script
@@ -908,7 +1017,7 @@ with middle_panel:
                 audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
                 sub_maker = voice.tts(
                     text=play_content,
-                    voice_name=voice_name,
+                    voice_name=params.voice_name,
                     voice_rate=params.voice_rate,
                     voice_file=audio_file,
                     voice_volume=params.voice_volume,
@@ -918,7 +1027,7 @@ with middle_panel:
                     play_content = "This is a example voice. if you hear this, the voice synthesis failed with the original content."
                     sub_maker = voice.tts(
                         text=play_content,
-                        voice_name=voice_name,
+                        voice_name=params.voice_name,
                         voice_rate=params.voice_rate,
                         voice_file=audio_file,
                         voice_volume=params.voice_volume,
@@ -929,8 +1038,8 @@ with middle_panel:
                     if os.path.exists(audio_file):
                         os.remove(audio_file)
 
-        if selected_tts_server == "azure-tts-v2" or (
-            voice_name and voice.is_azure_v2_voice(voice_name)
+        if selected_tts_server == "azure-tts-v2" or ( 
+            params.voice_name and voice.is_azure_v2_voice(params.voice_name)
         ):
             saved_azure_speech_region = config.azure.get("speech_region", "")
             saved_azure_speech_key = config.azure.get("speech_key", "")
@@ -948,8 +1057,8 @@ with middle_panel:
             config.azure["speech_region"] = azure_speech_region
             config.azure["speech_key"] = azure_speech_key
 
-        if selected_tts_server == "siliconflow" or (
-            voice_name and voice.is_siliconflow_voice(voice_name)
+        if selected_tts_server == "siliconflow" or ( 
+            params.voice_name and voice.is_siliconflow_voice(params.voice_name)
         ):
             saved_siliconflow_api_key = config.siliconflow.get("api_key", "")
 
@@ -1075,6 +1184,56 @@ with right_panel:
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
 
+    with st.container(border=True):
+        st.write("### 템플릿 관리")
+        
+        # Load templates
+        # In a real multi-user app, you'd pass the current user's ID
+        user_templates = tm.get_templates(db=st.session_state.db, user_id=1) 
+        template_options = {t.id: t.name for t in user_templates}
+        
+        selected_template_id = st.selectbox(
+            "템플릿 불러오기",
+            options=[None] + list(template_options.keys()),
+            format_func=lambda x: "선택 안함" if x is None else template_options[x]
+        )
+
+        if selected_template_id and st.button("템플릿 적용"):
+            with st.spinner("템플릿을 불러오는 중..."):
+                loaded_template = tm.get_template(db=st.session_state.db, template_id=selected_template_id)
+                if loaded_template:
+                    # Update params and session_state with loaded template data
+                    # This is a simplified example. A full implementation would iterate
+                    # over all fields and update them.
+                    st.session_state["video_subject"] = loaded_template.video_subject
+                    st.session_state["video_script"] = loaded_template.video_script
+                    params.font_name = loaded_template.font_name
+                    # ... and so on for all other parameters
+                    st.success(f"'{loaded_template.name}' 템플릿을 적용했습니다.")
+                    st.experimental_rerun()
+                else:
+                    st.error("템플릿을 불러오는데 실패했습니다.")
+
+        template_name = st.text_input("새 템플릿 이름")
+        if st.button("현재 설정을 템플릿으로 저장"):
+            if template_name:
+                with st.spinner("템플릿 저장 중..."):
+                    # Collect current params into a TemplateCreate schema
+                    template_data = TemplateCreate(
+                        name=template_name,
+                        video_subject=params.video_subject,
+                        video_script=params.video_script,
+                        # ... and so on for all other parameters
+                        font_name=params.font_name,
+                        font_size=params.font_size,
+                        voice_name=params.voice_name,
+                    )
+                    # In a real app, you'd get the current user
+                    tm.create_template(db=st.session_state.db, template=template_data, user=st.session_state.user)
+                    st.success(f"'{template_name}' 템플릿을 저장했습니다.")
+            else:
+                st.warning("템플릿 이름을 입력해주세요.")
+
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:
     config.save_config()
@@ -1116,7 +1275,7 @@ if start_button:
     log_records = []
 
     def log_received(msg):
-        if config.ui["hide_log"]:
+        if config.ui.get("hide_log", False):
             return
         with log_container:
             log_records.append(msg)
@@ -1146,8 +1305,31 @@ if start_button:
     except Exception:
         pass
 
+    # YouTube Upload Section
+    if video_files:
+        st.write("---")
+        st.write("### 🎬 YouTube에 업로드")
+        
+        # In a real app, you'd get the current user's ID
+        user_id_for_upload = "user_1" 
+
+        yt_title = st.text_input("YouTube 제목", value=params.video_subject)
+        yt_description = st.text_area("YouTube 설명", value=params.video_script, height=150)
+        yt_tags = st.text_input("YouTube 태그 (쉼표로 구분)", value=",".join(params.video_terms.split(',')[:15]))
+
+        if st.button("YouTube에 업로드 시작"):
+            with st.spinner("YouTube에 영상을 업로드하는 중... 이 작업은 시간이 걸릴 수 있습니다."):
+                video_id = tm.upload_to_youtube(user_id_for_upload, video_files[0], yt_title, yt_description, yt_tags.split(','))
+                if video_id:
+                    st.success(f"업로드 성공! 영상 링크: https://www.youtube.com/watch?v={video_id}")
+                else:
+                    st.error("YouTube 업로드에 실패했습니다. 로그를 확인해주세요.")
+
     open_task_folder(task_id)
     logger.info(tr("Video Generation Completed"))
     scroll_to_bottom()
 
-config.save_config()
+    config.save_config()
+
+if __name__ == "__main__":
+    main_app()

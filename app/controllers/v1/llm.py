@@ -1,12 +1,7 @@
 from fastapi import Request
 
 from app.controllers.v1.base import new_router
-from app.models.schema import (
-    VideoScriptRequest,
-    VideoScriptResponse,
-    VideoTermsRequest,
-    VideoTermsResponse,
-)
+from app.models.schema import VideoScriptRequest, VideoScriptResponse, VideoTermsRequest, VideoTermsResponse
 from app.services import llm
 from app.utils import utils
 

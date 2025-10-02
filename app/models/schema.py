@@ -162,9 +162,7 @@ class VideoTermsParams:
     """
 
     video_subject: Optional[str] = "Spring Flower Garden"
-    video_script: Optional[str] = (
-        "Spring Flower Garden
-    )
+    video_script: Optional[str] = "Spring Flower Garden"
     amount: Optional[int] = 5
 
 
@@ -257,7 +255,7 @@ class VideoScriptResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "video_script": "Spring Flower Garden...
+                    "video_script": "Spring Flower Garden"
                 },
             },
         }

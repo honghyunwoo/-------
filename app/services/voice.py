@@ -14,6 +14,7 @@ from moviepy.video.tools import subtitles
 
 from app.config import config
 from app.utils import utils
+from app.utils import cache
 
 
 def get_siliconflow_voices() -> list[str]:
@@ -1079,6 +1080,17 @@ def tts(
     voice_file: str,
     voice_volume: float = 1.0,
 ) -> Union[SubMaker, None]:
+    # Check cache first
+    cache_key = f"tts:{utils.md5(text + voice_name + str(voice_rate) + str(voice_volume))}"
+    cached_data = cache.get_cache(cache_key)
+    if cached_data:
+        cached_audio_path = cached_data.get("audio_file")
+        if os.path.exists(cached_audio_path):
+            logger.info(f"TTS response found in cache: {cache_key}")
+            os.makedirs(os.path.dirname(voice_file), exist_ok=True)
+            os.link(cached_audio_path, voice_file) # Use hard link to avoid copying
+            return SubMaker.from_dict(cached_data.get("sub_maker"))
+
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
     elif is_siliconflow_voice(voice_name):
@@ -1094,7 +1106,15 @@ def tts(
         else:
             logger.error(f"Invalid siliconflow voice name format: {voice_name}")
             return None
-    return azure_tts_v1(text, voice_name, voice_rate, voice_file)
+    
+    sub_maker = azure_tts_v1(text, voice_name, voice_rate, voice_file)
+    
+    # Save to cache
+    if sub_maker and os.path.exists(voice_file):
+        cache_data = {"audio_file": voice_file, "sub_maker": sub_maker.to_dict()}
+        cache.set_cache(cache_key, cache_data, ttl=3600 * 24 * 7) # Cache for 7 days
+
+    return sub_maker
 
 
 def convert_rate_to_percent(rate: float) -> str:
@@ -1251,7 +1271,7 @@ def siliconflow_tts(
                     ]
 
                 logger.success(f"siliconflow tts succeeded: {voice_file}")
-                print("s", sub_maker.subs, sub_maker.offset)
+                logger.debug(f"SubMaker content: subs={sub_maker.subs}, offset={sub_maker.offset}")
                 return sub_maker
             else:
                 logger.error(
@@ -1473,10 +1493,10 @@ if __name__ == "__main__":
     voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
     voice_name = parse_voice_name(voice_name)
     voice_name = is_azure_v2_voice(voice_name)
-    print(voice_name)
+    logger.info(f"Parsed Azure V2 voice name: {voice_name}")
 
     voices = get_all_azure_voices()
-    print(len(voices))
+    logger.info(f"Total Azure voices found: {len(voices)}")
 
     async def _do():
         temp_dir = utils.storage_dir("temp")
@@ -1519,7 +1539,7 @@ Profit-wise, Guizhou Moutai in 2023，>归母净利润增速为19%，其中营�
 
         text = _format_text(text)
         lines = utils.split_string_by_punctuations(text)
-        print(lines)
+        logger.debug(f"Split script lines: {lines}")
 
         for voice_name in voice_names:
             voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
@@ -1529,7 +1549,7 @@ Profit-wise, Guizhou Moutai in 2023，>归母净利润增速为19%，其中营�
             )
             create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
             audio_duration = get_audio_duration(sub_maker)
-            print(f"voice: {voice_name}, audio duration: {audio_duration}s")
+            logger.info(f"voice: {voice_name}, audio duration: {audio_duration}s")
 
     loop = asyncio.get_event_loop_policy().get_event_loop()
     try:

@@ -1,56 +1,33 @@
 import glob
 import os
 import pathlib
-import shutil
 from typing import Union
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, Request, UploadFile
+from fastapi import Depends, Path, Request, UploadFile, Response, StreamingResponse
 from fastapi.params import File
 from sqlalchemy.orm import Session
 
-from app.controllers import base
-from app.controllers.manager.memory_manager import InMemoryTaskManager
-from app.controllers.manager.redis_manager import RedisTaskManager
 from app.controllers.v1.base import new_router
 from app.database.connection import get_db
-from app.models.exception import HttpException
-from app.models.schema import (
-    AudioRequest,
-    BgmRetrieveResponse,
-    BgmUploadResponse,
-    SubtitleRequest,
-    TaskDeletionResponse,
-    TaskQueryRequest,
-    TaskQueryResponse,
-    TaskResponse,
-    TaskVideoRequest,
-)
+from app.models.exception import HttpException, LLMError
+from app.models.schema import AudioRequest
+from app.models.schema import BgmRetrieveResponse
+from app.models.schema import BgmUploadResponse
+from app.models.schema import SubtitleRequest
+from app.models.schema import TaskDeletionResponse
+from app.models.schema import TaskQueryRequest
+from app.models.schema import TaskQueryResponse
+from app.models.schema import TaskResponse
+from app.models.schema import TaskVideoRequest
 from app.models.user import User
-from app.services import auth, state as sm
-from app.services import task as tm
-from app.services import usage
+from app.services import auth, state as sm, usage
 from app.utils import utils
 from app.config.config import config
+from app.worker import generate_video_task
 
 # 인증 의존성
 # router = new_router(dependencies=[Depends(base.verify_token)])
 router = new_router()
-
-_enable_redis = config.app.get("enable_redis", False)
-_redis_host = config.app.get("redis_host", "localhost")
-_redis_port = config.app.get("redis_port", 6379)
-_redis_db = config.app.get("redis_db", 0)
-_redis_password = config.app.get("redis_password", None)
-_max_concurrent_tasks = config.app.get("max_concurrent_tasks", 5)
-
-redis_url = f"redis://:{_redis_password}@{_redis_host}:{_redis_port}/{_redis_db}"
-# Select appropriate task manager based on configuration
-if _enable_redis:
-    task_manager = RedisTaskManager(
-        max_concurrent_tasks=_max_concurrent_tasks, redis_url=redis_url
-    )
-else:
-    task_manager = InMemoryTaskManager(max_concurrent_tasks=_max_concurrent_tasks)
 
 
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
@@ -58,7 +35,7 @@ def create_video(
     request: Request, 
     body: TaskVideoRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_user)
+    current_user: User = Depends(auth.get_current_user),
 ):
     return create_task(request, body, db, current_user, stop_at="video")
 
@@ -68,7 +45,7 @@ def create_subtitle(
     request: Request, 
     body: SubtitleRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_user)
+    current_user: User = Depends(auth.get_current_user),
 ):
     return create_task(request, body, db, current_user, stop_at="subtitle")
 
@@ -78,7 +55,7 @@ def create_audio(
     request: Request, 
     body: AudioRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_user)
+    current_user: User = Depends(auth.get_current_user),
 ):
     return create_task(request, body, db, current_user, stop_at="audio")
 
@@ -93,30 +70,36 @@ def create_task(
     usage.check_credits(db, current_user)
 
     task_id = utils.get_uuid()
-    request_id = base.get_task_id(request)
     try:
         task = {
             "task_id": task_id,
-            "request_id": request_id,
             "params": body.model_dump(),
         }
-        sm.state.update_task(task_id)
-        task_manager.add_task(tm.start, task_id=task_id, params=body, db=db, user=current_user, stop_at=stop_at)
-        
+        sm.state.update_task(task_id, state=sm.const.TASK_STATE_PENDING)
+
+        # Send task to Celery worker
+        generate_video_task.delay(
+            task_id=task_id,
+            params_dict=body.model_dump(),
+            user_id=current_user.id,
+            stop_at=stop_at,
+        )
         usage.use_credits(db, current_user)
 
-        logger.success(f"Task created: {utils.to_json(task)}")
+        logger.success(f"Task created: {task_id}")
         return utils.get_response(200, task)
     except ValueError as e:
         raise HttpException(
-            task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
+            task_id=task_id, status_code=400, message=f"{str(e)}"
         )
 
 from fastapi import Query
 
+
 @router.get("/tasks", response_model=TaskQueryResponse, summary="Get all tasks")
-def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)):
-    request_id = base.get_task_id(request)
+def get_all_tasks(
+    request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)
+):
     tasks, total = sm.state.get_all_tasks(page, page_size)
 
     response = {
@@ -126,8 +109,6 @@ def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int =
         "page_size": page_size,
     }
     return utils.get_response(200, response)
-
-
 
 @router.get(
     "/tasks/{task_id}", response_model=TaskQueryResponse, summary="Query task status"
@@ -142,7 +123,6 @@ def get_task(
         endpoint = str(request.base_url)
     endpoint = endpoint.rstrip("/")
 
-    request_id = base.get_task_id(request)
     task = sm.state.get_task(task_id)
     if task:
         task_dir = utils.task_dir()
@@ -170,7 +150,7 @@ def get_task(
         return utils.get_response(200, task)
 
     raise HttpException(
-        task_id=task_id, status_code=404, message=f"{request_id}: task not found"
+        task_id=task_id, status_code=404, message=f"Task '{task_id}' not found."
     )
 
 
@@ -180,7 +160,6 @@ def get_task(
     summary="Delete a generated short video task",
 )
 def delete_video(request: Request, task_id: str = Path(..., description="Task ID")):
-    request_id = base.get_task_id(request)
     task = sm.state.get_task(task_id)
     if task:
         tasks_dir = utils.task_dir()
@@ -191,9 +170,8 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
         sm.state.delete_task(task_id)
         logger.success(f"video deleted: {utils.to_json(task)}")
         return utils.get_response(200)
-
     raise HttpException(
-        task_id=task_id, status_code=404, message=f"{request_id}: task not found"
+        task_id=task_id, status_code=404, message=f"Task '{task_id}' not found."
     )
 
 
@@ -223,7 +201,6 @@ def get_bgm_list(request: Request):
     summary="Upload the BGM file to the songs directory",
 )
 def upload_bgm_file(request: Request, file: UploadFile = File(...)):
-    request_id = base.get_task_id(request)
     # check file ext
     if file.filename.endswith("mp3"):
         song_dir = utils.song_dir()
@@ -237,14 +214,25 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
         return utils.get_response(200, response)
 
     raise HttpException(
-        "", status_code=400, message=f"{request_id}: Only *.mp3 files can be uploaded"
+        "", status_code=400, message=f"Only *.mp3 files can be uploaded."
     )
 
 
 @router.get("/stream/{file_path:path}")
 async def stream_video(request: Request, file_path: str):
     tasks_dir = utils.task_dir()
-    video_path = os.path.join(tasks_dir, file_path)
+    safe_path = utils.safe_file_path(base_dir=tasks_dir, file_path=file_path)
+    if not safe_path:
+        raise HttpException(
+            status_code=400,
+            message="Invalid file path.",
+        )
+    video_path = safe_path
+    if not os.path.exists(video_path):
+        raise HttpException(
+            status_code=404, message="Video file not found."
+        )
+
     range_header = request.headers.get("Range")
     video_size = os.path.getsize(video_path)
     start, end = 0, video_size - 1
@@ -292,10 +280,21 @@ async def download_video(_: Request, file_path: str):
     :return: video file
     """
     tasks_dir = utils.task_dir()
-    video_path = os.path.join(tasks_dir, file_path)
-    file_path = pathlib.Path(video_path)
-    filename = file_path.stem
-    extension = file_path.suffix
+    safe_path = utils.safe_file_path(base_dir=tasks_dir, file_path=file_path)
+    if not safe_path:
+        raise HttpException(
+            status_code=400,
+            message="Invalid file path.",
+        )
+    video_path = safe_path
+    if not os.path.exists(video_path):
+        raise HttpException(
+            status_code=404, message="Video file not found."
+        )
+
+    path_obj = pathlib.Path(video_path)
+    filename = path_obj.name
+    extension = path_obj.suffix
     headers = {"Content-Disposition": f"attachment; filename={filename}{extension}"}
     return FileResponse(
         path=video_path,

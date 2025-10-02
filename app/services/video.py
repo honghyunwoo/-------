@@ -23,6 +23,7 @@ from PIL import ImageFont
 from app.models import const
 from app.models.schema import (
     MaterialInfo,
+    VideoProcessingError,
     VideoAspect,
     VideoConcatMode,
     VideoParams,
@@ -124,19 +125,28 @@ def combine_videos(
     max_clip_duration: int = 30,
     threads: int = 2,
 ) -> str:
-    audio_clip = AudioFileClip(audio_file)
-    audio_duration = audio_clip.duration
+    with AudioFileClip(audio_file) as audio_clip:
+        audio_duration = audio_clip.duration
     logger.info(f"audio duration: {audio_duration} seconds")
 
-    # 오디오 길이에 기반한 클립 길이 계산 (최대 30초 지원)
+    # 🚨 FIXED: 영상 길이 30초 연장 시스템 구현 - Phase 1 Task 3
+    # 최소 30초 이상의 영상을 보장
+    min_video_duration = 30.0
+    if audio_duration < min_video_duration:
+        logger.warning(f"⚠️ Audio duration ({audio_duration:.2f}s) is shorter than minimum ({min_video_duration}s)")
+        audio_duration = min_video_duration
+        logger.info(f"🎯 Extended audio duration to {audio_duration:.2f} seconds")
+
+    # Calculate clip length based on audio duration (supports up to 30 seconds)
     if len(video_paths) > 0:
-        # 오디오 길이를 영상 개수로 나누되, max_clip_duration을 초과하지 않도록 함
+        # 🚨 FIXED: 더 긴 클립 길이 보장
         calculated_duration = audio_duration / len(video_paths)
-        req_dur = min(calculated_duration, max_clip_duration)
+        # 최소 5초, 최대 30초로 제한
+        req_dur = max(5.0, min(calculated_duration, max_clip_duration))
     else:
         req_dur = max_clip_duration
 
-    logger.info(f"calculated clip duration: {req_dur:.2f} seconds (audio: {audio_duration:.2f}s, videos: {len(video_paths)})")
+    logger.info(f"🎬 calculated clip duration: {req_dur:.2f} seconds (audio: {audio_duration:.2f}s, videos: {len(video_paths)})")
     output_dir = os.path.dirname(combined_video_path)
 
     aspect = VideoAspect(video_aspect)
@@ -172,7 +182,8 @@ def combine_videos(
         if video_duration > audio_duration:
             break
         
-        logger.debug(f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
+        logger.debug(
+            f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
         
         try:
             clip = VideoFileClip(subclipped_item.file_path).subclipped(subclipped_item.start_time, subclipped_item.end_time)
@@ -182,7 +193,8 @@ def combine_videos(
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
+                logger.debug(
+                    f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
                 
                 if clip_ratio == video_ratio:
                     clip = clip.resized(new_size=(video_width, video_height))
@@ -225,15 +237,19 @@ def combine_videos(
                 
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
-            clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
+            clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec, bitrate="8000k", preset="slow")
             
             close_clip(clip)
         
             processed_clips.append(SubClippedVideoClip(file_path=clip_file, duration=clip.duration, width=clip_w, height=clip_h))
             video_duration += clip.duration
-            
+
+        except (OSError, MemoryError) as e:
+            logger.error(f"MoviePy error processing clip: {subclipped_item.file_path}, error: {e}")
+            raise VideoProcessingError(f"Failed to process video clip: {e}") from e
         except Exception as e:
-            logger.error(f"failed to process clip: {str(e)}")
+            logger.exception(f"Unexpected error processing clip: {subclipped_item.file_path}")
+            raise VideoProcessingError(f"Unexpected error during clip processing: {e}") from e
     
     # loop processed clips until the video duration matches or exceeds the audio duration.
     if video_duration < audio_duration:
@@ -270,6 +286,9 @@ def combine_videos(
     
     # merge remaining video clips one by one
     for i, clip in enumerate(processed_clips[1:], 1):
+        base_clip = None
+        next_clip = None
+        merged_clip = None
         logger.info(f"merging clip {i}/{len(processed_clips)-1}, duration: {clip.duration:.2f}s")
         
         try:
@@ -288,17 +307,25 @@ def combine_videos(
                 temp_audiofile_path=output_dir,
                 audio_codec=audio_codec,
                 fps=fps,
+                codec=video_codec,
+                bitrate="8000k",
+                preset="slow",
             )
-            close_clip(base_clip)
-            close_clip(next_clip)
-            close_clip(merged_clip)
             
             # replace base file with new merged file
             delete_files(temp_merged_video)
             os.rename(temp_merged_next, temp_merged_video)
-            
+
+        except (OSError, MemoryError) as e:
+            logger.error(f"MoviePy error merging clips: {e}")
+            raise VideoProcessingError(f"Failed to merge video clips: {e}") from e
         except Exception as e:
-            logger.error(f"failed to merge clip: {str(e)}")
+            logger.exception(f"Unexpected error merging clips")
+            raise VideoProcessingError(f"Unexpected error during clip merging: {e}") from e
+        finally:
+            close_clip(base_clip)
+            close_clip(next_clip)
+            close_clip(merged_clip)
             continue
     
     # after merging, rename final result to target file name
@@ -440,10 +467,10 @@ def generate_video(
             _clip = _clip.with_position(("center", "center"))
         return _clip
 
-    video_clip = VideoFileClip(video_path).without_audio()
-    audio_clip = AudioFileClip(audio_path).with_effects(
-        [afx.MultiplyVolume(params.voice_volume)]
-    )
+    video_clip = None
+    audio_clip = None
+    bgm_clip = None
+    final_clip = None
 
     def make_textclip(text):
         return TextClip(
@@ -452,41 +479,104 @@ def generate_video(
             font_size=params.font_size,
         )
 
-    if subtitle_path and os.path.exists(subtitle_path):
-        sub = SubtitlesClip(
-            subtitles=subtitle_path, encoding="utf-8", make_textclip=make_textclip
+    try:
+        video_clip = VideoFileClip(video_path).without_audio()
+        audio_clip = AudioFileClip(audio_path).with_effects(
+            [afx.MultiplyVolume(params.voice_volume)]
         )
-        text_clips = []
-        for item in sub.subtitles:
-            clip = create_text_clip(subtitle_item=item)
-            text_clips.append(clip)
-        video_clip = CompositeVideoClip([video_clip, *text_clips])
 
-    bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
-    if bgm_file:
+        # Add watermark
+        if params.watermark_path and os.path.exists(params.watermark_path):
+            logger.info(f"adding watermark: {params.watermark_path}")
+            try:
+                watermark_clip = (
+                    ImageClip(params.watermark_path)
+                    .set_duration(video_clip.duration)
+                    .resize(height=int(video_height * 0.08))  # 8% of video height
+                    .set_opacity(0.8)
+                )
+
+                position_map = {
+                    "top_left": ("left", "top"),
+                    "top_right": ("right", "top"),
+                    "bottom_left": ("left", "bottom"),
+                    "bottom_right": ("right", "bottom"),
+                }
+                pos = position_map.get(params.watermark_position, ("right", "bottom"))
+                video_clip = CompositeVideoClip([video_clip, watermark_clip.with_position(pos, margin=10)])
+            except Exception as e:
+                logger.error(f"failed to add watermark: {str(e)}")
+
+        if subtitle_path and os.path.exists(subtitle_path):
+            with SubtitlesClip(subtitles=subtitle_path, encoding="utf-8", make_textclip=make_textclip) as sub:
+                text_clips = []
+                for item in sub.subtitles:
+                    with create_text_clip(subtitle_item=item) as clip:
+                        text_clips.append(clip)
+                video_clip = CompositeVideoClip([video_clip, *text_clips])
+
+        bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
+        if bgm_file:
+            try:
+                bgm_clip = AudioFileClip(bgm_file).with_effects(
+                    [
+                        afx.MultiplyVolume(params.bgm_volume),
+                        afx.AudioFadeOut(3),
+                        afx.AudioLoop(duration=video_clip.duration),
+                    ]
+                )
+                # Use a new variable for the composite to avoid closing the original audio_clip prematurely
+                composite_audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
+                audio_clip = composite_audio_clip
+            except Exception as e:
+                logger.warning(f"Failed to add BGM: {e}")
+                # Continue without BGM if it fails
+        # Combine intro, main, and outro videos
+        clips_to_concat = []
+        intro_clip = None
+        outro_clip = None
+
         try:
-            bgm_clip = AudioFileClip(bgm_file).with_effects(
-                [
-                    afx.MultiplyVolume(params.bgm_volume),
-                    afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration),
-                ]
-            )
-            audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
-        except Exception as e:
-            logger.error(f"failed to add bgm: {str(e)}")
+            if params.intro_path and os.path.exists(params.intro_path):
+                logger.info(f"adding intro: {params.intro_path}")
+                intro_clip = VideoFileClip(params.intro_path)
+                clips_to_concat.append(intro_clip)
 
-    video_clip = video_clip.with_audio(audio_clip)
-    video_clip.write_videofile(
-        output_file,
-        audio_codec=audio_codec,
-        temp_audiofile_path=output_dir,
-        threads=params.n_threads or 2,
-        logger=None,
-        fps=fps,
-    )
-    video_clip.close()
-    del video_clip
+            main_clip_with_audio = video_clip.with_audio(audio_clip)
+            clips_to_concat.append(main_clip_with_audio)
+
+            if params.outro_path and os.path.exists(params.outro_path):
+                logger.info(f"adding outro: {params.outro_path}")
+                outro_clip = VideoFileClip(params.outro_path)
+                clips_to_concat.append(outro_clip)
+
+            if len(clips_to_concat) > 1:
+                final_clip = concatenate_videoclips(clips_to_concat, method="compose")
+            else:
+                final_clip = main_clip_with_audio
+
+        except Exception as e:
+            logger.error(f"Failed to concatenate intro/outro: {e}")
+            final_clip = video_clip.with_audio(audio_clip)
+
+        final_clip.write_videofile(
+            output_file,
+            audio_codec=audio_codec,
+            temp_audiofile_path=output_dir,
+            threads=params.n_threads or 2,
+            logger=None,
+            fps=fps,
+            codec=video_codec,
+            bitrate="8000k",  # 고품질 비트레이트 (기본값: ~2000k)
+            preset="slow",    # 고품질 인코딩 (기본값: medium)
+        )
+    finally:
+        close_clip(final_clip)
+        close_clip(video_clip)
+        close_clip(audio_clip)
+        close_clip(bgm_clip)
+        close_clip(intro_clip)
+        close_clip(outro_clip)
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
@@ -495,42 +585,45 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             continue
 
         ext = utils.parse_extension(material.url)
+        clip = None
+        final_image_clip = None
         try:
-            clip = VideoFileClip(material.url)
-        except Exception:
-            clip = ImageClip(material.url)
+            try:
+                if ext not in const.FILE_TYPE_IMAGES:
+                    continue
+                clip = VideoFileClip(material.url)
+            except Exception:
+                clip = ImageClip(material.url)
 
-        width = clip.size[0]
-        height = clip.size[1]
-        if width < 480 or height < 480:
-            logger.warning(f"low resolution material: {width}x{height}, minimum 480x480 required")
-            continue
+            width = clip.size[0]
+            height = clip.size[1]
+            if width < 480 or height < 480:
+                logger.warning(f"low resolution material: {width}x{height}, minimum 480x480 required")
+                continue
 
-        if ext in const.FILE_TYPE_IMAGES:
-            logger.info(f"processing image: {material.url}")
-            # Create an image clip and set its duration to 3 seconds
-            clip = (
-                ImageClip(material.url)
-                .with_duration(clip_duration)
-                .with_position("center")
-            )
-            # Apply a zoom effect using the resize method.
-            # A lambda function is used to make the zoom effect dynamic over time.
-            # The zoom effect starts from the original size and gradually scales up to 120%.
-            # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-            # Note: 1 represents 100% size, so 1.2 represents 120% size.
-            zoom_clip = clip.resized(
-                lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-            )
+            if ext in const.FILE_TYPE_IMAGES:
+                logger.info(f"processing image: {material.url}")
+                # Create an image clip and set its duration
+                clip = (
+                    ImageClip(material.url)
+                    .with_duration(clip_duration)
+                    .with_position("center")
+                )
+                
+                zoomed_clip = clip.resized(
+                    lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+                )
 
-            # Optionally, create a composite video clip containing the zoomed clip.
-            # This is useful when you want to add other elements to the video.
-            final_clip = CompositeVideoClip([zoom_clip])
+                final_image_clip = CompositeVideoClip([zoomed_clip])
 
-            # Output the video to a file.
-            video_file = f"{material.url}.mp4"
-            final_clip.write_videofile(video_file, fps=30, logger=None)
+                video_file = f"{material.url}.mp4"
+                final_image_clip.write_videofile(video_file, fps=30, logger=None, codec=video_codec, bitrate="8000k", preset="slow")
+                material.url = video_file
+                logger.success(f"image processed: {video_file}")
+        except Exception as e:
+            logger.error(f"Failed to preprocess image material {material.url}: {e}")
+        finally:
             close_clip(clip)
-            material.url = video_file
-            logger.success(f"image processed: {video_file}")
+            close_clip(final_image_clip)
+
     return materials

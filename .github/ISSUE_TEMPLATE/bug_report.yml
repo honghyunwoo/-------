@@ -61,7 +61,7 @@ body:
       required: true
   - type: input
     attributes:
-      label: 操作系统 | Operating System
+      label: 운영체제
       description: |
         您的操作系统信息
         Your operating system information
@@ -70,18 +70,16 @@ body:
       required: true
   - type: input
     attributes:
-      label: MoneyPrinterTurbo 版本 | Version
+      label: 올빼미 스튜디오 버전
       description: |
-        您使用的 MoneyPrinterTurbo 版本
-        The version of MoneyPrinterTurbo you're using
+        사용 중인 올빼미 스튜디오의 버전을 입력해주세요.
       placeholder: v1.2.2, etc.
     validations:
       required: true
   - type: textarea
     attributes:
-      label: 补充信息 | Additional Information
+      label: 추가 정보
       description: |
-        其他对解决问题有帮助的信息（如截图、视频等）
-        Any other information that might help solve the issue (screenshots, videos, etc.)
+        문제 해결에 도움이 될 만한 추가 정보가 있다면 알려주세요. (스크린샷, 동영상 등)
     validations:
       required: false

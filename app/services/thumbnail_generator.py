@@ -35,6 +35,86 @@ class ThumbnailGenerator:
             "keyword": 40
         }
 
+    def _get_korean_font(self, size: int):
+        """
+        한글 지원 폰트 로드 - Phase 1 Task 4 강화
+        🚨 FIXED: 한글 폰트 완벽 적용 및 검증
+
+        Args:
+            size: 폰트 크기
+
+        Returns:
+            ImageFont 객체
+        """
+        # 🚨 FIXED: 한글 폰트 우선순위 재정렬 (한국어 최적화)
+        korean_fonts = [
+            # 1순위: 프로젝트 내 한글 폰트 (Charm-Bold.ttf)
+            "resource/fonts/Charm-Bold.ttf",
+            "resource/fonts/Charm-Regular.ttf",
+            # 2순위: Windows 한글 폰트
+            "C:/Windows/Fonts/malgun.ttf",      # 맑은 고딕
+            "C:/Windows/Fonts/malgunbd.ttf",    # 맑은 고딕 Bold
+            "C:/Windows/Fonts/NanumGothic.ttf", # 나눔고딕
+            "C:/Windows/Fonts/gulim.ttc",       # 굴림
+            "C:/Windows/Fonts/batang.ttc",      # 바탕
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc",  # macOS
+            "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",  # Linux
+        ]
+
+        # 사용 가능한 폰트 찾기
+        for font_path in korean_fonts:
+            try:
+                # 🚨 FIXED: 폰트 파일 존재 여부 먼저 확인
+                if not os.path.exists(font_path):
+                    logger.debug(f"Font file not found: {font_path}")
+                    continue
+                
+                font = ImageFont.truetype(font_path, size)
+                logger.info(f"✅ Loaded Korean font: {font_path}")
+                
+                # 🚨 FIXED: 폰트 로딩 검증 (한글 렌더링 테스트)
+                if self._test_font_rendering(font, "안녕하세요"):
+                    logger.info(f"🎯 Korean font validation successful: {font_path}")
+                    return font
+                else:
+                    logger.warning(f"⚠️ Korean font validation failed: {font_path}")
+                    continue
+                    
+            except Exception as e:
+                logger.debug(f"Failed to load font {font_path}: {e}")
+                continue
+
+        logger.error("❌ Korean font not found. Text may not display correctly.")
+        return ImageFont.load_default()
+    
+    def _test_font_rendering(self, font, test_text: str) -> bool:
+        """
+        폰트의 한글 렌더링을 테스트합니다.
+        
+        Args:
+            font: 테스트할 폰트 객체
+            test_text: 테스트할 한글 텍스트
+            
+        Returns:
+            bool: 한글 렌더링 성공 여부
+        """
+        try:
+            # 임시 이미지 생성하여 폰트 렌더링 테스트
+            test_img = Image.new('RGB', (100, 50), color='white')
+            test_draw = ImageDraw.Draw(test_img)
+            test_draw.text((10, 10), test_text, font=font, fill='black')
+            
+            # 렌더링된 텍스트가 비어있지 않은지 확인
+            bbox = test_draw.textbbox((10, 10), test_text, font=font)
+            if bbox[2] > bbox[0] and bbox[3] > bbox[1]:  # 너비와 높이가 0보다 큰지 확인
+                return True
+            else:
+                return False
+                
+        except Exception as e:
+            logger.debug(f"Font rendering test failed: {e}")
+            return False
+
     def generate_from_template(
         self,
         title: str,
@@ -302,12 +382,8 @@ class ThumbnailGenerator:
         draw = ImageDraw.Draw(img)
         width, height = img.size
 
-        # 폰트 로드 (기본 폰트 사용)
-        try:
-            # Windows 기본 폰트
-            font = ImageFont.truetype("arial.ttf", self.font_sizes["title"])
-        except:
-            font = ImageFont.load_default()
+        # 폰트 로드 (한글 지원 폰트 사용)
+        font = self._get_korean_font(self.font_sizes["title"])
 
         # 텍스트를 여러 줄로 분할
         words = text.split()
@@ -431,10 +507,7 @@ class ThumbnailGenerator:
             draw = ImageDraw.Draw(img)
             width, height = img.size
 
-            try:
-                keyword_font = ImageFont.truetype("arial.ttf", self.font_sizes["keyword"])
-            except:
-                keyword_font = ImageFont.load_default()
+            keyword_font = self._get_korean_font(self.font_sizes["keyword"])
 
             # 상단에 키워드 배치
             keyword_text = f"🔥 {keywords[0]}" if keywords else ""
@@ -477,9 +550,8 @@ class ThumbnailGenerator:
         try:
             emoji_font = ImageFont.truetype("seguiemj.ttf", 150)  # Windows 이모지 폰트
         except:
-            # 이모지 폰트 없으면 텍스트로 대체
-            emoji_font = ImageFont.load_default()
-            emoji = f"[{emotion.upper()}]"
+            # 이모지 폰트 없으면 한글 폰트로 대체
+            emoji_font = self._get_korean_font(150)
 
         # 왼쪽 상단에 배치
         draw.text((50, 50), emoji, fill=(255, 255, 255), font=emoji_font)
@@ -506,10 +578,7 @@ class ThumbnailGenerator:
         )
 
         # 2. 왼쪽 하단에 "클릭!" 텍스트
-        try:
-            cta_font = ImageFont.truetype("arial.ttf", 60)
-        except:
-            cta_font = ImageFont.load_default()
+        cta_font = self._get_korean_font(60)
 
         cta_text = "👆 CLICK!"
         draw.text((50, height - 100), cta_text, fill=(255, 255, 0), font=cta_font)

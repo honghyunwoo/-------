@@ -185,151 +185,167 @@ def similarity(a, b):
 
 
 def correct(subtitle_file, video_script, audio_file_path=None):
+    """
+    자막 동기화 완전 수정 - Phase 1 Task 1
+    오디오 길이를 정확히 측정하고 자막 타이밍을 올바르게 계산합니다.
+    """
     subtitle_items = file_to_subtitles(subtitle_file)
     script_lines = utils.split_string_by_punctuations(video_script)
 
-    # 오디오 파일 길이 가져오기 (동적 타이밍 계산용)
+    # 🚨 FIXED: 오디오 파일 길이 정확 측정
+    audio_duration = get_accurate_audio_duration(audio_file_path, video_script)
+    logger.info(f"🎯 Audio duration: {audio_duration:.2f} seconds")
+
+    corrected = False
+    new_subtitle_items = []
+    
+    if not script_lines:
+        logger.warning("Video script is empty. Cannot correct subtitles.")
+        return
+
+    # 🚨 FIXED: 정확한 타이밍 계산
+    new_subtitle_items = calculate_subtitle_timing(script_lines, audio_duration)
+    
+    if new_subtitle_items:
+        # 🚨 FIXED: SRT 파일 생성 및 검증
+        corrected = write_and_validate_srt(subtitle_file, new_subtitle_items)
+        
+        if corrected:
+            logger.info("✅ Subtitle corrected with accurate timing")
+        else:
+            logger.error("❌ Subtitle correction failed")
+    else:
+        logger.error("❌ Failed to calculate subtitle timing")
+
+
+def get_accurate_audio_duration(audio_file_path, video_script):
+    """
+    오디오 파일 길이를 정확히 측정합니다.
+    """
     audio_duration = 0
+    
     if audio_file_path and os.path.isfile(audio_file_path):
         try:
             from moviepy.editor import AudioFileClip
             with AudioFileClip(audio_file_path) as audio_clip:
                 audio_duration = audio_clip.duration
-            logger.info(f"오디오 길이: {audio_duration:.2f}초")
+            logger.info(f"🎵 Measured audio duration: {audio_duration:.2f} seconds")
         except Exception as e:
-            logger.warning(f"오디오 길이 측정 실패: {e}")
-            # 기본값으로 30초 설정
-            audio_duration = 30.0
+            logger.warning(f"⚠️ Failed to measure audio duration: {e}")
+            audio_duration = 0
 
-    corrected = False
+    if audio_duration == 0:
+        # 🚨 FIXED: 더 정확한 추정 (한국어 기준)
+        # 한국어 평균 읽기 속도: 3-4자/초
+        estimated_duration = len(video_script) / 3.5
+        logger.info(f"📝 Estimated audio duration: {estimated_duration:.2f} seconds")
+        audio_duration = estimated_duration
+
+    return audio_duration
+
+
+def calculate_subtitle_timing(script_lines, audio_duration):
+    """
+    자막 타이밍을 정확히 계산합니다.
+    """
     new_subtitle_items = []
-    script_index = 0
-    subtitle_index = 0
+    total_script_chars = sum(len(line) for line in script_lines)
+    
+    if total_script_chars == 0:
+        logger.warning("Video script has no content. Cannot calculate timing.")
+        return []
 
-    while script_index < len(script_lines) and subtitle_index < len(subtitle_items):
-        script_line = script_lines[script_index].strip()
-        subtitle_line = subtitle_items[subtitle_index][2].strip()
+    current_time = 0.0
+    
+    for i, line in enumerate(script_lines):
+        line = line.strip()
+        if not line:
+            continue
 
-        if script_line == subtitle_line:
-            new_subtitle_items.append(subtitle_items[subtitle_index])
-            script_index += 1
-            subtitle_index += 1
-        else:
-            combined_subtitle = subtitle_line
-            start_time = subtitle_items[subtitle_index][1].split(" --> ")[0]
-            end_time = subtitle_items[subtitle_index][1].split(" --> ")[1]
-            next_subtitle_index = subtitle_index + 1
+        # 🚨 FIXED: 정확한 타이밍 계산
+        line_chars = len(line)
+        duration = (line_chars / total_script_chars) * audio_duration
+        
+        # 최소 1초, 최대 5초로 제한
+        duration = max(1.0, min(duration, 5.0))
 
-            while next_subtitle_index < len(subtitle_items):
-                next_subtitle = subtitle_items[next_subtitle_index][2].strip()
-                if similarity(
-                    script_line, combined_subtitle + " " + next_subtitle
-                ) > similarity(script_line, combined_subtitle):
-                    combined_subtitle += " " + next_subtitle
-                    end_time = subtitle_items[next_subtitle_index][1].split(" --> ")[1]
-                    next_subtitle_index += 1
-                else:
-                    break
+        start_time = current_time
+        end_time = min(current_time + duration, audio_duration)
 
-            if similarity(script_line, combined_subtitle) > 0.8:
-                logger.warning(
-                    f"Merged/Corrected - Script: {script_line}, Subtitle: {combined_subtitle}"
-                )
-                new_subtitle_items.append(
-                    (
-                        len(new_subtitle_items) + 1,
-                        f"{start_time} --> {end_time}",
-                        script_line,
-                    )
-                )
-                corrected = True
-            else:
-                logger.warning(
-                    f"Mismatch - Script: {script_line}, Subtitle: {combined_subtitle}"
-                )
-                new_subtitle_items.append(
-                    (
-                        len(new_subtitle_items) + 1,
-                        f"{start_time} --> {end_time}",
-                        script_line,
-                    )
-                )
-                corrected = True
+        # 🚨 FIXED: 0초 타이밍 방지
+        if start_time >= end_time:
+            end_time = start_time + 1.0
 
-            script_index += 1
-            subtitle_index = next_subtitle_index
+        start_time_srt = utils.time_convert_seconds_to_hmsm(start_time)
+        end_time_srt = utils.time_convert_seconds_to_hmsm(end_time)
 
-    # Process the remaining lines of the script with proper timing calculation
-    remaining_script_count = len(script_lines) - script_index
-    if remaining_script_count > 0 and audio_duration > 0:
-        # 기존 자막들의 마지막 시간 찾기
-        last_end_time = 0
-        if new_subtitle_items:
-            last_timing = new_subtitle_items[-1][1]
-            if " --> " in last_timing:
-                last_end_time_str = last_timing.split(" --> ")[1]
-                # HH:MM:SS,mmm 형식을 초로 변환
-                time_parts = last_end_time_str.replace(',', '.').split(':')
-                if len(time_parts) == 3:
-                    last_end_time = float(time_parts[0]) * 3600 + float(time_parts[1]) * 60 + float(time_parts[2])
-
-        # 남은 시간을 남은 스크립트 라인들에 균등 분배
-        remaining_duration = max(audio_duration - last_end_time, remaining_script_count * 2.0)  # 최소 2초씩
-        segment_duration = remaining_duration / remaining_script_count
-
-        current_start = last_end_time
-
-        while script_index < len(script_lines):
-            logger.info(f"Dynamic timing for script line: {script_lines[script_index][:30]}...")
-
-            current_end = min(current_start + segment_duration, audio_duration)
-
-            # 시간을 SRT 형식으로 변환
-            start_time_srt = utils.time_convert_seconds_to_hmsm(current_start)
-            end_time_srt = utils.time_convert_seconds_to_hmsm(current_end)
-
-            new_subtitle_items.append(
-                (
-                    len(new_subtitle_items) + 1,
-                    f"{start_time_srt} --> {end_time_srt}",
-                    script_lines[script_index],
-                )
+        new_subtitle_items.append(
+            (
+                len(new_subtitle_items) + 1,
+                f"{start_time_srt} --> {end_time_srt}",
+                line,
             )
+        )
+        current_time = end_time
 
-            current_start = current_end
-            script_index += 1
-            corrected = True
-    else:
-        # 오디오 길이 정보가 없는 경우 기존 로직 유지
-        while script_index < len(script_lines):
-            logger.warning(f"Extra script line: {script_lines[script_index]}")
-            if subtitle_index < len(subtitle_items):
-                new_subtitle_items.append(
-                    (
-                        len(new_subtitle_items) + 1,
-                        subtitle_items[subtitle_index][1],
-                        script_lines[script_index],
-                    )
-                )
-                subtitle_index += 1
-            else:
-                new_subtitle_items.append(
-                    (
-                        len(new_subtitle_items) + 1,
-                        "00:00:00,000 --> 00:00:00,000",
-                        script_lines[script_index],
-                    )
-                )
-            script_index += 1
-            corrected = True
+    return new_subtitle_items
 
-    if corrected:
+
+def write_and_validate_srt(subtitle_file, new_subtitle_items):
+    """
+    SRT 파일을 생성하고 검증합니다.
+    """
+    try:
         with open(subtitle_file, "w", encoding="utf-8") as fd:
             for i, item in enumerate(new_subtitle_items):
                 fd.write(f"{i + 1}\n{item[1]}\n{item[2]}\n\n")
-        logger.info("Subtitle corrected")
-    else:
-        logger.success("Subtitle is correct")
+        
+        # 🚨 FIXED: 생성된 SRT 파일 검증
+        if validate_srt_timing(subtitle_file):
+            logger.info("✅ SRT file created and validated successfully")
+            return True
+        else:
+            logger.error("❌ SRT file validation failed")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to write SRT file: {e}")
+        return False
+
+
+def validate_srt_timing(srt_file):
+    """
+    생성된 SRT 파일의 타이밍을 검증합니다.
+    """
+    try:
+        with open(srt_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        lines = content.split('\n')
+        timing_errors = 0
+        
+        for i, line in enumerate(lines):
+            if '-->' in line:
+                # 0초 타이밍 검사
+                if '00:00:00,000' in line:
+                    logger.error(f"❌ Subtitle timing error at line {i+1}: {line}")
+                    timing_errors += 1
+                
+                # 타이밍 형식 검사
+                if not re.match(r'\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}', line):
+                    logger.error(f"❌ Invalid timing format at line {i+1}: {line}")
+                    timing_errors += 1
+        
+        if timing_errors == 0:
+            logger.info("✅ All subtitle timings are valid")
+            return True
+        else:
+            logger.error(f"❌ Found {timing_errors} timing errors")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to validate SRT file: {e}")
+        return False
 
 
 if __name__ == "__main__":

@@ -5,9 +5,9 @@ from urllib.parse import urlencode
 
 import requests
 from loguru import logger
-from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from app.config import config
+from app.models.exception import MaterialError
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
 
@@ -71,19 +71,39 @@ def search_videos_pexels(
                 continue
             video_files = v["video_files"]
             # loop through each url to determine the best quality
+            # 더 높은 해상도를 우선 선택 (품질 향상)
+            best_video = None
+            best_quality_score = 0
+
             for video in video_files:
                 w = int(video["width"])
                 h = int(video["height"])
-                if w == video_width and h == video_height:
-                    item = MaterialInfo()
-                    item.provider = "pexels"
-                    item.url = video["link"]
-                    item.duration = duration
-                    video_items.append(item)
-                    break
+
+                # 종횡비 확인
+                aspect_ratio = w / h
+                target_ratio = video_width / video_height
+                ratio_diff = abs(aspect_ratio - target_ratio)
+
+                # 종횡비가 비슷하고 (10% 이내), 최소 해상도 이상인 경우
+                if ratio_diff < 0.1 and w >= video_width and h >= video_height:
+                    # 품질 점수: 해상도가 높을수록 높은 점수
+                    quality_score = w * h
+                    if quality_score > best_quality_score:
+                        best_quality_score = quality_score
+                        best_video = video
+
+            if best_video:
+                item = MaterialInfo()
+                item.provider = "pexels"
+                item.url = best_video["link"]
+                item.duration = duration
+                video_items.append(item)
         return video_items
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Pexels API request failed: {e}")
+        raise MaterialError(f"Failed to search videos on Pexels: {e}") from e
     except Exception as e:
-        logger.error(f"search videos failed: {str(e)}")
+        logger.exception(f"An unexpected error occurred during Pexels search for '{search_term}'")
 
     return []
 
@@ -126,20 +146,40 @@ def search_videos_pixabay(
                 continue
             video_files = v["videos"]
             # loop through each url to determine the best quality
+            # 더 높은 해상도를 우선 선택 (품질 향상)
+            best_video = None
+            best_quality_score = 0
+
             for video_type in video_files:
                 video = video_files[video_type]
                 w = int(video["width"])
-                # h = int(video["height"])
-                if w >= video_width:
-                    item = MaterialInfo()
-                    item.provider = "pixabay"
-                    item.url = video["url"]
-                    item.duration = duration
-                    video_items.append(item)
-                    break
+                h = int(video["height"])
+
+                # 종횡비 확인
+                aspect_ratio = w / h
+                target_ratio = video_width / video_height
+                ratio_diff = abs(aspect_ratio - target_ratio)
+
+                # 종횡비가 비슷하고 (10% 이내), 최소 해상도 이상인 경우
+                if ratio_diff < 0.1 and w >= video_width and h >= video_height:
+                    # 품질 점수: 해상도가 높을수록 높은 점수
+                    quality_score = w * h
+                    if quality_score > best_quality_score:
+                        best_quality_score = quality_score
+                        best_video = video
+
+            if best_video:
+                item = MaterialInfo()
+                item.provider = "pixabay"
+                item.url = best_video["url"]
+                item.duration = duration
+                video_items.append(item)
         return video_items
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Pixabay API request failed: {e}")
+        raise MaterialError(f"Failed to search videos on Pixabay: {e}") from e
     except Exception as e:
-        logger.error(f"search videos failed: {str(e)}")
+        logger.exception(f"An unexpected error occurred during Pixabay search for '{search_term}'")
 
     return []
 
@@ -161,31 +201,38 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         logger.info(f"video already exists: {video_path}")
         return video_path
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-    }
-
-    # if video does not exist, download it
-    with open(video_path, "wb") as f:
-        f.write(
-            requests.get(
-                video_url,
-                headers=headers,
-                proxies=config.proxy,
-                verify=False,
-                timeout=(60, 240),
-            ).content
-        )
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
+        with requests.get(
+            video_url,
+            headers=headers,
+            proxies=config.proxy,
+            verify=False,
+            timeout=(60, 240),
+            stream=True,
+        ) as r:
+            r.raise_for_status()
+            with open(video_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to download video from {video_url}: {e}")
+        raise MaterialError(f"Failed to download video: {e}") from e
+    except IOError as e:
+        logger.error(f"Failed to write video to {video_path}: {e}")
+        raise MaterialError(f"Failed to save video file: {e}") from e
 
     if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+        from moviepy.editor import VideoFileClip
         try:
-            clip = VideoFileClip(video_path)
-            duration = clip.duration
-            fps = clip.fps
-            clip.close()
+            with VideoFileClip(video_path) as clip:
+                duration = clip.duration
+                fps = clip.fps
             if duration > 0 and fps > 0:
                 return video_path
-        except Exception as e:
+        except (OSError, Exception) as e:
             try:
                 os.remove(video_path)
             except Exception:
@@ -256,7 +303,7 @@ def download_videos(
                     )
                     break
         except Exception as e:
-            logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
+            logger.warning(f"Skipping video due to download/processing error: {item.url}, error: {e}")
     logger.success(f"downloaded {len(video_paths)} videos")
     return video_paths
 

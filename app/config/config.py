@@ -90,6 +90,7 @@ class Config:
         self.log_level = log_level
         self.listen_host = listen_host
         self.listen_port = listen_port
+        self.reload_debug = reload_debug
         # 설정 데이터 저장 (앱 전체에서 사용)
         self.app = app
         self.whisper = whisper
