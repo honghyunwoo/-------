@@ -13,6 +13,18 @@
 __pycache__
 logs/
 
+# 환경 변수 파일 (민감 정보 포함)
+.env
+.env.local
+.env.production
+.env.*.local
+
+# 데이터베이스 파일
+*.db
+*.sqlite
+*.sqlite3
+owl_studio.db
+
 node_modules
 # VuePress 默认临时文件目录
 /sites/docs/.vuepress/.temp

@@ -15,10 +15,14 @@ if USE_SQLITE:
     connect_args = {"check_same_thread": False}
 else:
     # PostgreSQL 사용 (프로덕션)
-    DATABASE_URL = os.getenv(
-        "DATABASE_URL",
-        "postgresql://owl_user:owl_password_123@localhost/owl_studio"
-    )
+    # 보안: DATABASE_URL 환경 변수 필수
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        raise ValueError(
+            "DATABASE_URL environment variable is required for PostgreSQL. "
+            "Please set it in your .env file. "
+            "Example: DATABASE_URL=postgresql://user:password@localhost/dbname"
+        )
     connect_args = {}
 
 # 데이터베이스 엔진 생성
