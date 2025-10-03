@@ -74,6 +74,13 @@ app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
 def shutdown_event():
     logger.info("shutdown event")
 
+    # 스케줄러 중지
+    try:
+        from app.services.scheduler import stop_scheduler
+        stop_scheduler()
+    except Exception as e:
+        logger.error(f"Failed to stop scheduler: {e}")
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -83,3 +90,10 @@ async def startup_event():
         logger.info("Database tables created.")
     except Exception as e:
         logger.error(f"Failed to create tables: {e}")
+
+    # 자동 갱신 스케줄러 시작
+    try:
+        from app.services.scheduler import start_scheduler
+        start_scheduler()
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")

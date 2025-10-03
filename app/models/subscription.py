@@ -12,6 +12,10 @@ class Subscription(Base):
     start_date = Column(DateTime, default=func.now())
     end_date = Column(DateTime, nullable=False)
     is_active = Column(Integer, default=1)
+    auto_renew = Column(Integer, default=1)  # 자동 갱신 여부 (1: 활성화, 0: 비활성화)
+    billing_key = Column(String, unique=True, index=True)  # 토스페이먼츠 자동결제용 빌링키 (정기결제용)
+    last_renewed_at = Column(DateTime)  # 마지막 갱신 일시
+    next_billing_date = Column(DateTime)  # 다음 결제 예정일
 
     user = relationship("User", back_populates="subscriptions")
     payments = relationship("Payment", back_populates="subscription", cascade="all, delete-orphan")

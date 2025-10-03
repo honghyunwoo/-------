@@ -6,7 +6,7 @@ from datetime import datetime
 from app.database.connection import get_db
 from app.models import schema
 from app.models.user import User
-from app.services import auth, payment
+from app.services import auth, payment, subscription as subscription_service
 
 router = APIRouter()
 
@@ -89,4 +89,110 @@ async def toss_webhook(
         # 기타 에러 발생 시에도 200 OK 반환 (토스페이먼츠 재전송 방지)
         # 실제 에러는 로그에 기록됨
         return {"status": "error", "message": str(e)}
+
+
+@router.post("/subscription/auto-renew/toggle")
+def toggle_auto_renew(
+    subscription_id: int,
+    enable: bool,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth.get_current_user)
+):
+    """
+    자동 갱신 설정 토글
+
+    Args:
+        subscription_id: 구독 ID
+        enable: True (활성화) / False (비활성화)
+
+    Returns:
+        dict: {"status": "success" | "error", "message": "메시지"}
+    """
+    # 본인 구독인지 확인
+    from app.models.subscription import Subscription
+    subscription = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    if subscription.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = subscription_service.toggle_auto_renew(db, subscription_id, enable)
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@router.post("/subscription/cancel")
+def cancel_subscription(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth.get_current_user)
+):
+    """
+    구독 취소
+
+    Args:
+        subscription_id: 구독 ID
+
+    Returns:
+        dict: {"status": "success" | "error", "message": "메시지"}
+    """
+    # 본인 구독인지 확인
+    from app.models.subscription import Subscription
+    subscription = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    if subscription.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = subscription_service.cancel_subscription(db, subscription_id)
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@router.get("/subscription/status")
+def get_subscription_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth.get_current_user)
+):
+    """
+    현재 사용자의 구독 상태 조회
+
+    Returns:
+        dict: 구독 정보
+    """
+    from app.models.subscription import Subscription
+
+    active_subscription = db.query(Subscription).filter(
+        Subscription.user_id == current_user.id,
+        Subscription.is_active == 1
+    ).first()
+
+    if not active_subscription:
+        return {
+            "has_subscription": False,
+            "plan": current_user.subscription_plan,
+            "credits": current_user.credits
+        }
+
+    return {
+        "has_subscription": True,
+        "subscription_id": active_subscription.id,
+        "plan": active_subscription.plan,
+        "start_date": active_subscription.start_date.isoformat(),
+        "end_date": active_subscription.end_date.isoformat(),
+        "auto_renew": bool(active_subscription.auto_renew),
+        "next_billing_date": active_subscription.next_billing_date.isoformat() if active_subscription.next_billing_date else None,
+        "credits": current_user.credits,
+        "days_left": (active_subscription.end_date - datetime.now()).days
+    }
 
