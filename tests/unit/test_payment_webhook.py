@@ -335,6 +335,18 @@ def main():
     if not test_payment_retry_logic():
         all_passed = False
 
+    # 6. 부분 취소 상태 테스트 (Phase 2 추가)
+    if not test_partial_canceled_status():
+        all_passed = False
+
+    # 7. User 없을 때 pending 저장 테스트 (Phase 2 추가)
+    if not test_user_not_found_pending_save():
+        all_passed = False
+
+    # 8. amount Integer 타입 테스트 (Phase 3 추가)
+    if not test_amount_integer_type():
+        all_passed = False
+
     print("\n" + "=" * 60)
     if all_passed:
         print("[SUCCESS] All payment webhook tests passed!")
@@ -344,6 +356,9 @@ def main():
         print("  [PASS] Payment canceled (CANCELED)")
         print("  [PASS] Idempotency guarantee (prevent duplicates)")
         print("  [PASS] Retry logic")
+        print("  [PASS] Partial canceled status (NEW)")
+        print("  [PASS] User not found pending save (NEW)")
+        print("  [PASS] Amount integer type validation (NEW)")
         print("\nSupported Payment Statuses:")
         print("  - READY (waiting)")
         print("  - IN_PROGRESS (processing)")
@@ -351,10 +366,147 @@ def main():
         print("  - CANCELED (canceled)")
         print("  - ABORTED (failed)")
         print("  - EXPIRED (expired)")
+        print("  - PARTIAL_CANCELED (partial cancel) [NEW]")
         print("  - WAITING_FOR_DEPOSIT (virtual account waiting)")
     else:
         print("[FAIL] Some payment webhook tests failed.")
         sys.exit(1)
+
+def test_partial_canceled_status():
+    """부분 취소 상태 처리 테스트"""
+    from app.database.connection import SessionLocal
+    from app.services.payment import handle_webhook
+    from app.models.user import User
+    from app.models.subscription import Payment
+    from datetime import datetime
+
+    db = SessionLocal()
+    try:
+        # 테스트 사용자 생성
+        user = User(email="test_partial@example.com", full_name="Test Partial", hashed_password="test", is_active=True, subscription_plan="free", credits=3)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        order_id = f"owl_{user.id}_{int(datetime.now().timestamp())}_pro"
+
+        # PARTIAL_CANCELED 상태 웹훅
+        payload = {
+            "eventType": "PAYMENT_STATUS_CHANGED",
+            "data": {
+                "orderId": order_id,
+                "status": "PARTIAL_CANCELED",
+                "paymentKey": "test_payment_key_partial",
+                "totalAmount": 99000
+            }
+        }
+
+        result = handle_webhook(db, payload, None)
+
+        # PARTIAL_CANCELED는 로그만 남기고 성공 반환
+        assert result["status"] == "success"
+        assert "partial" in result["message"].lower() or "cancel" in result["message"].lower()
+
+        return True
+    finally:
+        db.query(User).filter(User.email == "test_partial@example.com").delete()
+        db.commit()
+        db.close()
+
+
+def test_user_not_found_pending_save():
+    """User 없을 때 pending 저장 테스트"""
+    from app.database.connection import SessionLocal
+    from app.services.payment import handle_webhook
+    from app.models.subscription import Payment
+    from datetime import datetime
+
+    db = SessionLocal()
+    try:
+        # 존재하지 않는 사용자 ID
+        fake_user_id = 99999
+        order_id = f"owl_{fake_user_id}_{int(datetime.now().timestamp())}_pro"
+
+        payload = {
+            "eventType": "PAYMENT_STATUS_CHANGED",
+            "data": {
+                "orderId": order_id,
+                "status": "DONE",
+                "paymentKey": "test_payment_key_pending",
+                "totalAmount": 99000
+            }
+        }
+
+        result = handle_webhook(db, payload, None)
+
+        # User 없으면 error 반환하지만 pending으로 저장됨
+        assert result["status"] == "error"
+        assert "not found" in result["message"].lower()
+
+        # pending 상태로 저장되었는지 확인
+        pending_payment = db.query(Payment).filter(
+            Payment.payment_gateway_charge_id == order_id
+        ).first()
+
+        assert pending_payment is not None
+        assert pending_payment.status == "pending"
+        assert pending_payment.user_id == fake_user_id
+
+        return True
+    finally:
+        db.query(Payment).filter(Payment.payment_gateway_charge_id.like(f"owl_{99999}_%")).delete()
+        db.commit()
+        db.close()
+
+
+def test_amount_integer_type():
+    """amount가 Integer 타입인지 확인"""
+    from app.database.connection import SessionLocal
+    from app.services.payment import handle_webhook
+    from app.models.user import User
+    from app.models.subscription import Payment, Subscription
+    from datetime import datetime
+
+    db = SessionLocal()
+    try:
+        user = User(email="test_amount@example.com", full_name="Test Amount", hashed_password="test", is_active=True, subscription_plan="free", credits=3)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        order_id = f"owl_{user.id}_{int(datetime.now().timestamp())}_pro"
+
+        payload = {
+            "eventType": "PAYMENT_STATUS_CHANGED",
+            "data": {
+                "orderId": order_id,
+                "status": "DONE",
+                "paymentKey": "test_payment_key_amount",
+                "totalAmount": 99000  # Integer 값
+            }
+        }
+
+        result = handle_webhook(db, payload, None)
+        assert result["status"] == "success"
+
+        # Payment 레코드 확인
+        payment = db.query(Payment).filter(
+            Payment.payment_gateway_charge_id == order_id
+        ).first()
+
+        # amount가 Integer로 저장되었는지 확인
+        assert payment is not None
+        assert isinstance(payment.amount, int)
+        assert payment.amount == 99000
+
+        return True
+    finally:
+        db.query(Subscription).filter(Subscription.user_id == user.id).delete()
+        db.query(Payment).filter(Payment.user_id == user.id).delete()
+        db.query(User).filter(User.email == "test_amount@example.com").delete()
+        db.commit()
+        db.close()
+
 
 if __name__ == "__main__":
     main()

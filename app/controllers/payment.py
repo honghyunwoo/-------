@@ -66,10 +66,15 @@ async def toss_webhook(
     """
     try:
         # 페이로드 읽기
+        payload_body = await request.body()
         payload = await request.json()
 
         # 웹훅 서명 검증 (X-Toss-Signature 헤더)
         signature = request.headers.get("X-Toss-Signature")
+
+        # 서명 검증 실패 시 403 Forbidden 반환 (보안)
+        if not payment.verify_webhook_signature(payload_body.decode('utf-8'), signature):
+            raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
         # 웹훅 처리
         result = payment.handle_webhook(db, payload, signature)
@@ -77,8 +82,11 @@ async def toss_webhook(
         # 토스페이먼츠는 10초 이내 200 OK 응답 필요
         return result
 
+    except HTTPException:
+        # HTTPException은 그대로 전달 (403 포함)
+        raise
     except Exception as e:
-        # 에러 발생 시에도 200 OK 반환 (토스페이먼츠 재전송 방지)
+        # 기타 에러 발생 시에도 200 OK 반환 (토스페이먼츠 재전송 방지)
         # 실제 에러는 로그에 기록됨
         return {"status": "error", "message": str(e)}
 

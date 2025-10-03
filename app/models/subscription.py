@@ -22,7 +22,7 @@ class Payment(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     subscription_id = Column(Integer, ForeignKey("subscriptions.id"))
-    amount = Column(Float, nullable=False)
+    amount = Column(Integer, nullable=False)  # 금액 (원 단위, Integer로 변경하여 부동소수점 오류 방지)
     currency = Column(String, default="KRW")
     status = Column(String, nullable=False)
     payment_gateway_charge_id = Column(String, unique=True)  # order_id (예: owl_123_1696305600_pro)
