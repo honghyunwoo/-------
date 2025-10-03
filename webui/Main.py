@@ -46,15 +46,39 @@ if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "user" not in st.session_state:
     st.session_state["user"] = None
+if "dark_mode" not in st.session_state:
+    st.session_state["dark_mode"] = False  # 기본값: 라이트 모드
 
-# 현대적인 스타일 정의
-modern_css = """
-<style>
-    /* 구글 폰트 임포트 */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-
-    /* CSS 변수 정의 */
-    :root {
+# 현대적인 스타일 정의 (다크 모드 지원)
+def get_modern_css(dark_mode=False):
+    if dark_mode:
+        # 다크 모드 CSS 변수
+        css_vars = """
+        --primary-blue: #3B82F6;
+        --accent-purple: #8B5CF6;
+        --success-green: #10B981;
+        --dark-gray: #F9FAFB;
+        --mid-gray: #D1D5DB;
+        --light-gray: #1F2937;
+        --white: #111827;
+        --bg-primary: #0F172A;
+        --bg-secondary: #1E293B;
+        --text-primary: #F1F5F9;
+        --text-secondary: #CBD5E1;
+        --hero-gradient: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+        --glass-bg: rgba(30, 41, 59, 0.7);
+        --glass-border: rgba(148, 163, 184, 0.2);
+        --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        --glass-blur: blur(12px);
+        --input-bg: rgba(30, 41, 59, 0.95);
+        --input-border: rgba(148, 163, 184, 0.3);
+        --card-bg: rgba(30, 41, 59, 0.8);
+        --font-primary: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+        --app-bg: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+        """
+    else:
+        # 라이트 모드 CSS 변수
+        css_vars = """
         --primary-blue: #2563EB;
         --accent-purple: #7C3AED;
         --success-green: #059669;
@@ -62,29 +86,49 @@ modern_css = """
         --mid-gray: #6B7280;
         --light-gray: #F9FAFB;
         --white: #FFFFFF;
+        --bg-primary: #FFFFFF;
+        --bg-secondary: #F9FAFB;
+        --text-primary: #1F2937;
+        --text-secondary: #6B7280;
         --hero-gradient: linear-gradient(135deg, #2563EB 0%, #7C3AED 100%);
         --glass-bg: rgba(255, 255, 255, 0.15);
         --glass-border: rgba(255, 255, 255, 0.2);
         --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
         --glass-blur: blur(8px);
+        --input-bg: rgba(255, 255, 255, 0.95);
+        --input-border: rgba(203, 213, 225, 0.5);
+        --card-bg: rgba(255, 255, 255, 0.9);
         --font-primary: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
+        --app-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        """
+
+    return f"""
+<style>
+    /* 구글 폰트 임포트 */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+    /* CSS 변수 정의 */
+    :root {{
+        {css_vars}
+    }}
 
     /* 전체 앱 스타일링 */
-    .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    .stApp {{
+        background: var(--app-bg);
         font-family: var(--font-primary);
-    }
+        color: var(--text-primary);
+        transition: all 0.3s ease;
+    }}
 
     /* 메인 컨테이너 */
-    .main .block-container {
+    .main .block-container {{
         padding: 2rem 1.5rem;
         max-width: 1400px;
         margin: 0 auto;
-    }
+    }}
 
     /* 타이틀 스타일링 */
-    h1 {
+    h1 {{
         font-family: var(--font-primary) !important;
         font-weight: 700 !important;
         background: var(--hero-gradient) !important;
@@ -95,19 +139,23 @@ modern_css = """
         padding-top: 0 !important;
         font-size: 2.5rem !important;
         letter-spacing: -0.025em !important;
-    }
+    }}
 
     /* 서브헤딩 스타일 */
-    h2, h3 {
+    h2, h3 {{
         font-family: var(--font-primary) !important;
         font-weight: 600 !important;
-        color: var(--dark-gray) !important;
+        color: var(--text-primary) !important;
         margin: 1.5rem 0 1rem 0 !important;
-    }
+    }}
+
+    p, span, div {{
+        color: var(--text-primary);
+    }}
 
     /* 카드 스타일 (벤토 그리드) */
-    .element-container {
-        background: var(--glass-bg);
+    .element-container {{
+        background: var(--card-bg);
         backdrop-filter: var(--glass-blur);
         border-radius: 16px;
         border: 1px solid var(--glass-border);
@@ -115,34 +163,35 @@ modern_css = """
         padding: 1.5rem;
         margin: 1rem 0;
         transition: all 0.3s ease;
-    }
+    }}
 
-    .element-container:hover {
+    .element-container:hover {{
         transform: translateY(-2px);
         box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-    }
+    }}
 
     /* 입력 필드 스타일링 */
     .stTextInput input,
     .stTextArea textarea,
-    .stSelectbox select {
-        background: rgba(255, 255, 255, 0.9) !important;
-        border: 2px solid transparent !important;
+    .stSelectbox select {{
+        background: var(--input-bg) !important;
+        border: 2px solid var(--input-border) !important;
         border-radius: 12px !important;
         font-family: var(--font-primary) !important;
         font-size: 14px !important;
         padding: 12px 16px !important;
         transition: all 0.3s ease !important;
         box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
-    }
+        color: var(--text-primary) !important;
+    }}
 
     .stTextInput input:focus,
     .stTextArea textarea:focus,
-    .stSelectbox select:focus {
+    .stSelectbox select:focus {{
         border-color: var(--primary-blue) !important;
         box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
         outline: none !important;
-    }
+    }}
 
     /* 버튼 스타일링 */
     .stButton button {
@@ -204,36 +253,189 @@ modern_css = """
     }
 
     /* 반응형 디자인 */
-    @media (max-width: 768px) {
-        .main .block-container {
-            padding: 1.5rem 1rem;
-        }
-        h1 {
-            font-size: 2rem !important;
-        }
-        .stButton button {
+    /* 태블릿 (768px ~ 1024px) */
+    @media (max-width: 1024px) and (min-width: 769px) {{
+        .main .block-container {{
+            padding: 1.5rem 1.5rem;
+            max-width: 100%;
+        }}
+        h1 {{
+            font-size: 2.2rem !important;
+        }}
+        .element-container {{
+            padding: 1.25rem;
+        }}
+    }}
+
+    /* 모바일 (~ 768px) */
+    @media (max-width: 768px) {{
+        .main .block-container {{
+            padding: 1rem 0.75rem;
+        }}
+        h1 {{
+            font-size: 1.75rem !important;
+            margin-bottom: 1rem !important;
+        }}
+        h2, h3 {{
+            font-size: 1.25rem !important;
+        }}
+        .stButton button {{
             width: 100% !important;
-            padding: 16px !important;
-            font-size: 16px !important;
-        }
-    }
+            padding: 14px !important;
+            font-size: 15px !important;
+        }}
+        .element-container {{
+            padding: 1rem;
+            margin: 0.75rem 0;
+        }}
+        /* 입력 필드 모바일 최적화 */
+        .stTextInput input,
+        .stTextArea textarea,
+        .stSelectbox select {{
+            font-size: 16px !important; /* iOS 줌 방지 */
+            padding: 14px !important;
+        }}
+    }}
+
+    /* 소형 모바일 (~ 480px) */
+    @media (max-width: 480px) {{
+        .main .block-container {{
+            padding: 0.75rem 0.5rem;
+        }}
+        h1 {{
+            font-size: 1.5rem !important;
+        }}
+        h2, h3 {{
+            font-size: 1.1rem !important;
+        }}
+        .stButton button {{
+            padding: 12px !important;
+            font-size: 14px !important;
+        }}
+        .element-container {{
+            padding: 0.75rem;
+            border-radius: 12px;
+        }}
+    }}
 
     /* 커스텀 애니메이션 */
-    @keyframes fadeInUp {
-        from {
+    @keyframes fadeInUp {{
+        from {{
             opacity: 0;
             transform: translateY(30px);
-        }
-        to {
+        }}
+        to {{
             opacity: 1;
             transform: translateY(0);
-        }
-    }
+        }}
+    }}
+
+    @keyframes slideInLeft {{
+        from {{
+            opacity: 0;
+            transform: translateX(-30px);
+        }}
+        to {{
+            opacity: 1;
+            transform: translateX(0);
+        }}
+    }}
+
+    @keyframes slideInRight {{
+        from {{
+            opacity: 0;
+            transform: translateX(30px);
+        }}
+        to {{
+            opacity: 1;
+            transform: translateX(0);
+        }}
+    }}
+
+    @keyframes pulse {{
+        0%, 100% {{
+            opacity: 1;
+        }}
+        50% {{
+            opacity: 0.7;
+        }}
+    }}
+
+    @keyframes spin {{
+        from {{
+            transform: rotate(0deg);
+        }}
+        to {{
+            transform: rotate(360deg);
+        }}
+    }}
+
+    @keyframes shimmer {{
+        0% {{
+            background-position: -1000px 0;
+        }}
+        100% {{
+            background-position: 1000px 0;
+        }}
+    }}
 
     /* 페이드 인 효과 */
-    .fade-in {
+    .fade-in {{
         animation: fadeInUp 0.6s ease-out;
-    }
+    }}
+
+    /* 로딩 스피너 */
+    .loading-spinner {{
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid var(--glass-border);
+        border-top-color: var(--primary-blue);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }}
+
+    /* 스켈레톤 로딩 */
+    .skeleton {{
+        background: linear-gradient(90deg, var(--glass-bg) 0%, var(--card-bg) 50%, var(--glass-bg) 100%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 8px;
+    }}
+
+    /* 호버 효과 강화 */
+    .stButton button {{
+        position: relative;
+        overflow: hidden;
+    }}
+
+    .stButton button::before {{
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }}
+
+    .stButton button:hover::before {{
+        width: 300px;
+        height: 300px;
+    }}
+
+    /* 카드 등장 애니메이션 */
+    .element-container {{
+        animation: fadeInUp 0.5s ease-out;
+    }}
+
+    /* 성공/에러 메시지 애니메이션 */
+    .stSuccess, .stError, .stWarning, .stInfo {{
+        animation: slideInLeft 0.4s ease-out;
+    }}
 
     /* 스크롤바 커스텀 */
     ::-webkit-scrollbar {
@@ -247,9 +449,28 @@ modern_css = """
         background: var(--primary-blue);
         border-radius: 8px;
     }
-    ::-webkit-scrollbar-thumb:hover {
+    ::-webkit-scrollbar-thumb:hover {{
         background: var(--accent-purple);
-    }
+    }}
+
+    /* 다크 모드 토글 버튼 스타일 */
+    .dark-mode-toggle {{
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1000;
+        background: var(--card-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 50px;
+        padding: 0.5rem 1rem;
+        backdrop-filter: var(--glass-blur);
+        box-shadow: var(--glass-shadow);
+        transition: all 0.3s ease;
+    }}
+
+    .dark-mode-toggle:hover {{
+        transform: scale(1.05);
+    }}
 </style>
 """
 
@@ -275,7 +496,10 @@ def setup_language_selector(locales):
 
 # --- App Setup ---
 setup_logging()
-st.markdown(modern_css, unsafe_allow_html=True)
+
+# 다크 모드 CSS 적용
+dark_mode = st.session_state.get("dark_mode", False)
+st.markdown(get_modern_css(dark_mode), unsafe_allow_html=True)
 
 font_dir = os.path.join(root_dir, "resource", "fonts")
 song_dir = os.path.join(root_dir, "resource", "songs")
@@ -294,12 +518,19 @@ if "ui_language" not in st.session_state:
 
 locales = utils.load_locales(i18n_dir)
 
-title_col, lang_col = st.columns([3, 1])
+title_col, lang_col, theme_col = st.columns([2.5, 1, 0.5])
 
 with title_col:
     st.title("🦉 올빼미 AI 영상 스튜디오")
 with lang_col:
     setup_language_selector(locales)
+with theme_col:
+    st.write("")  # Spacer
+    # 다크 모드 토글
+    theme_icon = "🌙" if not st.session_state.get("dark_mode", False) else "☀️"
+    if st.button(theme_icon, key="dark_mode_toggle", help="다크/라이트 모드 전환"):
+        st.session_state["dark_mode"] = not st.session_state.get("dark_mode", False)
+        st.rerun()
 
 support_locales = [
     "zh-CN",
@@ -403,8 +634,17 @@ def show_register_page():
                     st.error(f"회원가입 실패: {e}")
 
 def show_auth_page():
-    st.markdown(modern_css, unsafe_allow_html=True)
-    
+    dark_mode = st.session_state.get("dark_mode", False)
+    st.markdown(get_modern_css(dark_mode), unsafe_allow_html=True)
+
+    # 다크 모드 토글 (로그인 페이지에도 표시)
+    _, _, theme_col = st.columns([2.5, 1, 0.5])
+    with theme_col:
+        theme_icon = "🌙" if not dark_mode else "☀️"
+        if st.button(theme_icon, key="auth_dark_mode_toggle", help="다크/라이트 모드 전환"):
+            st.session_state["dark_mode"] = not dark_mode
+            st.rerun()
+
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.write("") # Spacer
@@ -426,31 +666,102 @@ if not st.session_state["authenticated"]:
 # If authenticated, show the main app
 def show_history_page():
     st.subheader("🎞️ 영상 생성 히스토리")
-    
-    # Placeholder for API call to fetch history
-    # In a real app: history_items = requests.get(f"{API_URL}/history", headers={"Authorization": f"Bearer {token}"}).json()
-    history_items = [
-        {"video_subject": "AI의 미래", "created_at": "2024-10-04T10:00:00", "video_path": "path/to/video1.mp4", "task_id": "task1"},
-        {"video_subject": "성공하는 사람들의 5가지 습관", "created_at": "2024-10-03T15:30:00", "video_path": "path/to/video2.mp4", "task_id": "task2"},
-    ] # Mock data
+
+    user_info = st.session_state.get("user")
+    if not user_info:
+        st.error("로그인이 필요합니다.")
+        return
+
+    # API URL 설정
+    api_base_url = config.app.get("api_base_url", "http://127.0.0.1:8080")
+    api_url = f"{api_base_url}/api/v1/history/"
+
+    try:
+        import requests
+        # 실제 API 호출 (토큰이 있다면 헤더에 포함)
+        headers = {}
+        if "access_token" in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state['access_token']}"
+
+        # 페이지네이션 파라미터
+        skip = st.session_state.get("history_skip", 0)
+        limit = 10
+
+        response = requests.get(
+            api_url,
+            headers=headers,
+            params={"skip": skip, "limit": limit},
+            timeout=5
+        )
+
+        if response.status_code == 200:
+            history_items = response.json()
+        else:
+            st.error(f"히스토리를 불러오는데 실패했습니다. (상태 코드: {response.status_code})")
+            history_items = []
+    except ImportError:
+        st.warning("requests 라이브러리가 설치되지 않았습니다. Mock 데이터를 표시합니다.")
+        # Fallback to mock data
+        history_items = [
+            {"video_subject": "AI의 미래", "created_at": "2024-10-04T10:00:00", "video_path": "path/to/video1.mp4", "task_id": "task1"},
+            {"video_subject": "성공하는 사람들의 5가지 습관", "created_at": "2024-10-03T15:30:00", "video_path": "path/to/video2.mp4", "task_id": "task2"},
+        ]
+    except Exception as e:
+        st.warning(f"API 연결 실패: {e}. Mock 데이터를 표시합니다.")
+        # Fallback to mock data
+        history_items = [
+            {"video_subject": "AI의 미래", "created_at": "2024-10-04T10:00:00", "video_path": "path/to/video1.mp4", "task_id": "task1"},
+            {"video_subject": "성공하는 사람들의 5가지 습관", "created_at": "2024-10-03T15:30:00", "video_path": "path/to/video2.mp4", "task_id": "task2"},
+        ]
 
     if not history_items:
         st.info("아직 생성된 영상이 없습니다.")
         return
 
+    # 히스토리 카드 스타일로 표시
     for item in history_items:
-        col1, col2, col3 = st.columns([3, 2, 1])
-        with col1:
-            st.write(f"**{item['video_subject']}**")
-        with col2:
-            st.write(f"_{item['created_at']}_")
-        with col3:
-            # In a real app, this would trigger a download from the backend API
-            st.download_button("다시 다운로드", data=b"", file_name=os.path.basename(item['video_path']), mime="video/mp4", key=f"download_{item['task_id']}")
+        with st.container():
+            st.markdown(f"""
+            <div style='background: var(--card-bg); padding: 1.5rem; border-radius: 12px; margin: 1rem 0; border: 1px solid var(--glass-border);'>
+                <div style='display: flex; justify-content: space-between; align-items: center;'>
+                    <div style='flex: 1;'>
+                        <h3 style='margin: 0; color: var(--text-primary);'>{item.get('video_subject', '제목 없음')}</h3>
+                        <p style='color: var(--text-secondary); margin: 0.5rem 0 0 0;'>
+                            📅 {item.get('created_at', '')} · 🆔 {item.get('task_id', '')[:8]}...
+                        </p>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # 영상 미리보기 및 다운로드 버튼
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                video_path = item.get('video_path', '')
+                if video_path and os.path.exists(video_path):
+                    st.video(video_path)
+            with col2:
+                if st.button("📥 다운로드", key=f"download_{item.get('task_id')}", use_container_width=True):
+                    st.info("다운로드 기능은 구현 예정입니다.")
+            with col3:
+                if st.button("🗑️ 삭제", key=f"delete_{item.get('task_id')}", use_container_width=True):
+                    st.warning("삭제 기능은 구현 예정입니다.")
+
+    # 페이지네이션
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col1:
+        if st.button("⬅️ 이전", disabled=(skip == 0)):
+            st.session_state["history_skip"] = max(0, skip - limit)
+            st.rerun()
+    with col3:
+        if st.button("다음 ➡️"):
+            st.session_state["history_skip"] = skip + limit
+            st.rerun()
 
 
 def main_app():
-    st.markdown(modern_css, unsafe_allow_html=True)
+    dark_mode = st.session_state.get("dark_mode", False)
+    st.markdown(get_modern_css(dark_mode), unsafe_allow_html=True)
 
     font_dir = os.path.join(root_dir, "resource", "fonts")
     song_dir = os.path.join(root_dir, "resource", "songs")
@@ -470,26 +781,86 @@ def main_app():
 
     locales = utils.load_locales(i18n_dir)
 
-    title_col, lang_col, logout_col = st.columns([3, 1, 0.5])
+    title_col, lang_col, theme_col, logout_col = st.columns([2.5, 1, 0.3, 0.5])
 
     with title_col:
         st.title("🦉 올빼미 AI 영상 스튜디오")
-    
+
+    with theme_col:
+        st.write("")  # Spacer
+        # 다크 모드 토글
+        theme_icon = "🌙" if not dark_mode else "☀️"
+        if st.button(theme_icon, key="main_dark_mode_toggle", help="다크/라이트 모드 전환"):
+            st.session_state["dark_mode"] = not dark_mode
+            st.rerun()
+
     with logout_col:
         st.write("") # Spacer
         if st.button("로그아웃"):
             st.session_state["authenticated"] = False
             st.session_state["user"] = None
-            st.experimental_rerun()
+            st.rerun()
 
-    # Display user's current plan and credits
+    # Display user's current plan and credits (개선된 대시보드)
     user_info = st.session_state.get("user")
     if user_info:
         plan = user_info.get('subscription_plan', 'free').capitalize()
         credits = user_info.get('credits', 0)
         credits_display = "무제한" if credits == -1 else f"{credits}개"
-        st.sidebar.info(f"**{user_info.get('email')}**\n\n**플랜**: {plan}\n\n**남은 크레딧**: {credits_display}")
-        st.sidebar.page_link("public/payment.html", label="플랜 업그레이드", icon="🚀")
+
+        # 사이드바 대시보드
+        st.sidebar.markdown("### 👤 내 계정")
+        st.sidebar.markdown(f"**{user_info.get('email')}**")
+
+        # 플랜 카드
+        plan_emoji = "🆓" if plan.lower() == "free" else "⭐" if plan.lower() == "basic" else "💎"
+        st.sidebar.markdown(f"""
+        <div style='background: var(--card-bg); padding: 1rem; border-radius: 12px; margin: 1rem 0; border: 1px solid var(--glass-border);'>
+            <div style='font-size: 2rem; text-align: center;'>{plan_emoji}</div>
+            <div style='text-align: center; font-weight: 600; color: var(--text-primary);'>{plan} 플랜</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 크레딧 진행 바
+        if credits != -1:
+            max_credits = 100 if plan.lower() == "free" else 500 if plan.lower() == "basic" else 1000
+            credit_percentage = (credits / max_credits) * 100 if max_credits > 0 else 0
+            credit_color = "#10B981" if credit_percentage > 50 else "#F59E0B" if credit_percentage > 20 else "#EF4444"
+
+            st.sidebar.markdown("#### 📊 크레딧 사용량")
+            st.sidebar.markdown(f"""
+            <div style='background: var(--card-bg); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);'>
+                <div style='display: flex; justify-content: space-between; margin-bottom: 0.5rem;'>
+                    <span style='color: var(--text-secondary);'>남은 크레딧</span>
+                    <span style='font-weight: 600; color: {credit_color};'>{credits}/{max_credits}</span>
+                </div>
+                <div style='background: rgba(148, 163, 184, 0.2); height: 8px; border-radius: 4px; overflow: hidden;'>
+                    <div style='background: {credit_color}; height: 100%; width: {credit_percentage}%; transition: width 0.3s ease;'></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.sidebar.markdown("#### 📊 크레딧")
+            st.sidebar.markdown(f"""
+            <div style='background: var(--card-bg); padding: 1rem; border-radius: 12px; text-align: center; border: 1px solid var(--glass-border);'>
+                <div style='font-size: 2rem; color: #10B981;'>∞</div>
+                <div style='color: var(--text-secondary);'>무제한 사용 가능</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # 업그레이드 버튼
+        if plan.lower() == "free":
+            if st.sidebar.button("🚀 플랜 업그레이드", use_container_width=True):
+                st.sidebar.info("결제 페이지로 이동합니다.")
+                # 실제로는 결제 페이지로 리다이렉트
+
+        # 통계 정보 (Mock 데이터 - 실제로는 DB에서 가져와야 함)
+        st.sidebar.markdown("#### 📈 이번 달 통계")
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            st.metric("생성 영상", "12개", "+3")
+        with col2:
+            st.metric("총 재생", "1.2K", "+15%")
 
     main_tab, history_tab = st.tabs(["🎬 영상 제작", "🗂️ 히스토리"])
 
