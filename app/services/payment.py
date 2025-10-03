@@ -16,7 +16,22 @@ from app.models.user import User
 # 토스페이먼츠 설정
 TOSS_CLIENT_KEY = os.getenv("TOSS_PAYMENTS_CLIENT_KEY", os.getenv("TOSS_CLIENT_KEY", "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq"))
 TOSS_SECRET_KEY = os.getenv("TOSS_PAYMENTS_SECRET_KEY", os.getenv("TOSS_SECRET_KEY", "test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R"))
-TOSS_BASE_URL = "https://api.tosspayments.com" 
+TOSS_BASE_URL = "https://api.tosspayments.com"
+
+def _mask_sensitive_data(value: str, visible_chars: int = 4) -> str:
+    """
+    민감한 데이터를 마스킹합니다.
+
+    Args:
+        value: 마스킹할 문자열
+        visible_chars: 앞/뒤로 보여줄 문자 수
+
+    Returns:
+        마스킹된 문자열 (예: "abc...xyz")
+    """
+    if not value or len(value) <= visible_chars * 2:
+        return "***masked***"
+    return f"{value[:visible_chars]}...{value[-visible_chars:]}" 
 
 def confirm_payment(db: Session, user: User, payment_key: str, order_id: str, amount: int):
     """
@@ -204,7 +219,7 @@ def _handle_payment_status_changed(db: Session, payload: dict) -> dict:
         status = data.get("status")
         amount = data.get("totalAmount")
 
-        logger.info(f"💳 Payment status changed - Order: {order_id}, Status: {status}, Amount: {amount}")
+        logger.info(f"💳 Payment status changed - Order: {_mask_sensitive_data(order_id, 6)}, Status: {status}, Amount: ***masked***")
 
         # 멱등성 보장: 이미 처리된 결제인지 확인
         existing_payment = db.query(Payment).filter(
@@ -229,8 +244,24 @@ def _handle_payment_status_changed(db: Session, payload: dict) -> dict:
             # 사용자 조회
             user = db.query(User).filter(User.id == user_id).first()
             if not user:
-                logger.error(f"❌ User not found: {user_id}")
-                return {"status": "error", "message": "User not found"}
+                # User가 없는 경우: Payment 레코드 저장 후 나중에 재시도 가능하도록
+                logger.error(f"❌ User not found: {user_id}, saving payment for later retry")
+
+                # Payment 레코드를 "pending" 상태로 저장
+                pending_payment = Payment(
+                    user_id=user_id,
+                    subscription_id=None,
+                    amount=amount,
+                    currency="KRW",
+                    status="pending",  # 사용자 생성 후 재처리 가능
+                    payment_gateway_charge_id=order_id,
+                    payment_key=payment_key
+                )
+                db.add(pending_payment)
+                db.commit()
+
+                logger.warning(f"⚠️ Payment saved as pending - will retry when user exists: {order_id}")
+                return {"status": "error", "message": "User not found - payment saved for retry"}
 
             # 구독 업데이트
             _update_user_subscription(db, user, plan, amount, order_id, payment_key)
@@ -274,6 +305,17 @@ def _handle_payment_status_changed(db: Session, payload: dict) -> dict:
             logger.warning(f"⚠️ Payment aborted: {order_id}")
             return {"status": "success", "message": "Payment aborted"}
 
+        elif status == "PARTIAL_CANCELED":
+            # 부분 취소 처리
+            if existing_payment:
+                # 부분 취소는 결제 상태는 유지하되 로그만 남김
+                # 실제 취소 금액은 CANCEL_STATUS_CHANGED 웹훅에서 처리
+                logger.info(f"🔄 Partial cancellation detected: {_mask_sensitive_data(order_id, 6)}, Amount: ***masked***")
+            else:
+                logger.warning(f"⚠️ Partial cancel for non-existent payment: {order_id}")
+
+            return {"status": "success", "message": "Partial cancel logged"}
+
         elif status == "EXPIRED":
             # 결제 만료
             logger.warning(f"⏰ Payment expired: {order_id}")
@@ -297,26 +339,37 @@ def _handle_deposit_callback(db: Session, payload: dict) -> dict:
 
     가상계좌는 결제 완료 시점을 구매자가 결정하므로,
     웹훅을 통해 입금 완료를 확인해야 합니다.
+
+    Payload 구조:
+    {
+        "createdAt": "2023-01-01T00:00:00+09:00",
+        "secret": "secret_key",
+        "status": "DONE",
+        "transactionKey": "transaction_key",
+        "orderId": "order_id"
+    }
     """
     try:
-        order_id = payload.get("orderId")
-        status = payload.get("status")
-        transaction_key = payload.get("transactionKey")
+        # DEPOSIT_CALLBACK의 실제 페이로드 구조 사용
+        data = payload.get("data", payload)  # data 래핑 여부 처리
+        order_id = data.get("orderId")
+        status = data.get("status")
 
         logger.info(f"🏦 Virtual account deposit - Order: {order_id}, Status: {status}")
 
         if status == "DONE":
             # 입금 완료 - PAYMENT_STATUS_CHANGED와 동일하게 처리
-            # 토스페이먼츠 API로 결제 정보 조회
-            payment_data = _fetch_payment_info(transaction_key)
+            # 토스페이먼츠 API로 결제 정보 조회 (orderId 사용)
+            payment_data = _fetch_payment_info(order_id=order_id)
 
             if payment_data:
+                # payment_data를 PAYMENT_STATUS_CHANGED 형식으로 래핑
                 return _handle_payment_status_changed(db, {
                     "eventType": "PAYMENT_STATUS_CHANGED",
                     "data": payment_data
                 })
             else:
-                logger.error(f"❌ Failed to fetch payment info: {transaction_key}")
+                logger.error(f"❌ Failed to fetch payment info for order: {order_id}")
                 return {"status": "error", "message": "Failed to fetch payment info"}
 
         return {"status": "success", "message": f"Deposit status: {status}"}
@@ -338,7 +391,7 @@ def _handle_cancel_status_changed(db: Session, payload: dict) -> dict:
         cancel_amount = data.get("cancelAmount")
         cancel_reason = data.get("cancelReason", "")[:50]  # 길이 제한 (로깅)
 
-        logger.info(f"🔄 Cancel status changed - Payment: {payment_key}, Amount: ***masked***, Reason: {cancel_reason}")
+        logger.info(f"🔄 Cancel status changed - Payment: {_mask_sensitive_data(payment_key)}, Amount: ***masked***, Reason: {cancel_reason}")
 
         # 결제 레코드 찾기 (payment_key로 조회)
         payment = db.query(Payment).filter(
@@ -355,11 +408,11 @@ def _handle_cancel_status_changed(db: Session, payload: dict) -> dict:
                 subscription.is_active = 0
                 payment.status = "canceled"  # 결제 상태도 업데이트
                 db.commit()
-                logger.info(f"✅ Subscription deactivated due to cancellation: {payment_key}")
+                logger.info(f"✅ Subscription deactivated due to cancellation: {_mask_sensitive_data(payment_key)}")
             else:
-                logger.warning(f"⚠️ Subscription not found for payment: {payment_key}")
+                logger.warning(f"⚠️ Subscription not found for payment: {_mask_sensitive_data(payment_key)}")
         else:
-            logger.warning(f"⚠️ Payment not found for cancellation: {payment_key}")
+            logger.warning(f"⚠️ Payment not found for cancellation: {_mask_sensitive_data(payment_key)}")
 
         return {"status": "success", "message": "Cancel processed"}
 
@@ -369,19 +422,36 @@ def _handle_cancel_status_changed(db: Session, payload: dict) -> dict:
         raise
 
 
-def _fetch_payment_info(transaction_key: str) -> dict:
+def _fetch_payment_info(order_id: str = None, payment_key: str = None) -> dict:
     """
     토스페이먼츠 API로부터 결제 정보를 조회합니다.
     가상계좌 웹훅은 전체 결제 정보를 포함하지 않으므로 별도 조회가 필요합니다.
+
+    Args:
+        order_id: 주문 ID (owl_123_1696305600_pro 형식)
+        payment_key: 토스페이먼츠 결제 고유 ID
+
+    Note:
+        order_id나 payment_key 중 하나는 반드시 제공되어야 합니다.
+        payment_key가 우선적으로 사용됩니다 (더 정확한 조회).
     """
     try:
+        if not order_id and not payment_key:
+            logger.error("❌ Either order_id or payment_key is required")
+            return None
+
         auth_header = base64.b64encode(f"{TOSS_SECRET_KEY}:".encode()).decode()
         headers = {
             "Authorization": f"Basic {auth_header}",
             "Content-Type": "application/json"
         }
 
-        url = f"{TOSS_BASE_URL}/v1/payments/orders/{transaction_key}"
+        # payment_key를 우선적으로 사용 (더 정확함)
+        if payment_key:
+            url = f"{TOSS_BASE_URL}/v1/payments/{payment_key}"
+        else:
+            url = f"{TOSS_BASE_URL}/v1/payments/orders/{order_id}"
+
         response = requests.get(url, headers=headers, timeout=5)
         response.raise_for_status()
 
