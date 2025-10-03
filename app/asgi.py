@@ -47,6 +47,52 @@ def get_application() -> FastAPI:
         description=config.project_description,
         version=config.project_version,
         debug=False,
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
+        openapi_tags=[
+            {
+                "name": "Authentication",
+                "description": "사용자 인증 및 회원가입 관련 API",
+            },
+            {
+                "name": "Videos",
+                "description": "AI 영상 생성 및 관리 API",
+            },
+            {
+                "name": "Credits",
+                "description": "크레딧 관리 및 사용 내역 API",
+            },
+            {
+                "name": "Payment",
+                "description": "결제 및 구독 관리 API",
+            },
+            {
+                "name": "History",
+                "description": "영상 생성 히스토리 조회 API",
+            },
+            {
+                "name": "Templates",
+                "description": "영상 템플릿 관리 API",
+            },
+            {
+                "name": "Teams",
+                "description": "팀 협업 기능 API",
+            },
+            {
+                "name": "Health",
+                "description": "시스템 상태 모니터링 API",
+            },
+        ],
+        contact={
+            "name": "올빼미 AI 영상 스튜디오",
+            "url": "https://owl-studio.kr",
+            "email": "support@owl-studio.kr",
+        },
+        license_info={
+            "name": "Commercial License",
+            "url": "https://owl-studio.kr/license",
+        },
     )
     instance.include_router(root_api_router)
     instance.add_exception_handler(HttpException, exception_handler)
