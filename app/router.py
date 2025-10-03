@@ -10,7 +10,7 @@ Resources:
 from fastapi import APIRouter
 
 from app.controllers import auth, payment, template, team
-from app.monitoring import health
+from app.monitoring import health, performance
 from app.controllers.v1 import llm, video, credits, history
 
 root_api_router = APIRouter()
@@ -38,3 +38,4 @@ root_api_router.include_router(team.router, prefix="/teams", tags=["Teams"])
 
 # monitoring
 root_api_router.include_router(health.router)
+root_api_router.include_router(performance.router)
