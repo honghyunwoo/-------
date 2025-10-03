@@ -622,19 +622,45 @@ mv app/controllers/v1/1_Admin_Dashboard.py \
 - **영향**: 보안 취약점 제거, ERR-001과 일관성 확보
 
 #### ERR-010: 결제 웹훅 미완성 ✅
-- **해결 방법**: 완전한 웹훅 핸들러 구현 (10+ 시나리오)
-- **커밋**: (다음 커밋)
-- **소요 시간**: 3시간
+- **해결 방법**: 완전한 웹훅 핸들러 구현 (15개 필수 이슈 수정)
+- **커밋**:
+  - Phase 1: 931fc4f (7 CRITICAL 이슈)
+  - Phase 2: 719653e (5 MEDIUM 이슈)
+  - Phase 3+4: cf77fe4 (3 LOW 이슈)
+- **소요 시간**: 5시간
 - **영향**: 상용화 최대 블로커 해결, 결제 자동화 완성
-- **문서**: PAYMENT_WEBHOOK_GUIDE.md
-- **테스트**: 5개 케이스 통과
-- **기능**:
+- **문서**:
+  - PAYMENT_WEBHOOK_GUIDE.md (709 lines)
+  - PAYMENT_WEBHOOK_REVIEW.md (20개 이슈 분석)
+- **테스트**: 8개 케이스 통과 (5개 기본 + 3개 신규)
+- **Phase 1 (CRITICAL) 수정**:
+  - ✅ payment_key 컬럼 추가 (Alembic 마이그레이션)
+  - ✅ 트랜잭션 안전성 (try-except-rollback)
+  - ✅ CANCEL_STATUS_CHANGED 수정 (payment_key 조회)
+  - ✅ 환경 변수 통일 (TOSS_PAYMENTS_*)
+  - ✅ 요청 타임아웃 추가 (8초/5초)
+  - ✅ 재시도 로직 수정 (aborted 상태 조회)
+  - ✅ payment_key 저장 완성
+- **Phase 2 (MEDIUM) 수정**:
+  - ✅ PARTIAL_CANCELED 처리 추가
+  - ✅ DEPOSIT_CALLBACK 페이로드 구조 수정
+  - ✅ _fetch_payment_info URL 수정 (/v1/payments/{paymentKey})
+  - ✅ User not found 시 pending 저장
+  - ✅ 민감 정보 마스킹 (_mask_sensitive_data)
+- **Phase 3+4 (LOW) 수정**:
+  - ✅ amount Float → Integer 변경
+  - ✅ verify_webhook_signature 403 반환
+  - ✅ 추가 테스트 케이스 3개
+- **지원 기능**:
   - ✅ 웹훅 서명 검증 (HMAC SHA256)
-  - ✅ 결제 상태 처리 (8가지)
+  - ✅ 결제 상태 처리 (8가지: DONE, CANCELED, ABORTED, EXPIRED, PARTIAL_CANCELED, READY, IN_PROGRESS, WAITING_FOR_DEPOSIT)
   - ✅ 가상계좌 입금 처리
   - ✅ 결제 취소 처리
+  - ✅ 부분 취소 처리
   - ✅ 멱등성 보장
   - ✅ 재시도 로직
+  - ✅ User 없을 때 pending 저장
+  - ✅ 데이터 무결성 (Integer 타입)
 
 ---
 
@@ -657,10 +683,37 @@ mv app/controllers/v1/1_Admin_Dashboard.py \
 - **상태**: **Week 1 완료!**
 
 ### 상용화 블로커 (Phase 1)
-- **ERR-010 (결제 웹훅)**: ✅ 해결 (Day 1-3)
+- **ERR-010 (결제 웹훅)**: ✅ 해결 (Day 1-3, 총 15개 이슈 수정)
+  - Phase 1: 7 CRITICAL 이슈 (931fc4f)
+  - Phase 2: 5 MEDIUM 이슈 (719653e)
+  - Phase 3+4: 3 LOW 이슈 (cf77fe4)
+  - 테스트: 8개 케이스 (100% 통과)
+  - 문서: 2개 가이드 (918 lines)
 - **다음 작업**: 구독 자동 갱신 (Day 4-5)
+
+### Day 1-3 상세 작업 (ERR-010)
+**Phase 1 - CRITICAL (7개)**:
+1. payment_key 컬럼 추가 (dc29c046ce38 마이그레이션)
+2. 트랜잭션 롤백 안전성 확보
+3. CANCEL_STATUS_CHANGED 조회 수정
+4. 환경 변수명 통일 (TOSS_PAYMENTS_*)
+5. 요청 타임아웃 설정 (3곳)
+6. get_failed_payments 상태 수정
+7. payment_key 전역 저장 로직
+
+**Phase 2 - MEDIUM (5개)**:
+8. PARTIAL_CANCELED 상태 처리
+9. DEPOSIT_CALLBACK 페이로드 구조
+10. _fetch_payment_info API 엔드포인트
+11. User not found pending 저장
+12. 민감 정보 마스킹 (5곳)
+
+**Phase 3+4 - LOW (3개)**:
+13. amount Float → Integer (93bbca6dac25 마이그레이션)
+14. 웹훅 서명 403 반환
+15. 추가 테스트 3개 (총 8개)
 
 ---
 
-**마지막 업데이트**: 2025-10-03 09:00
+**마지막 업데이트**: 2025-10-03 10:05 (Phase 1-4 완료)
 **다음 리뷰**: 2025-10-04 09:00
