@@ -25,7 +25,8 @@ class Payment(Base):
     amount = Column(Float, nullable=False)
     currency = Column(String, default="KRW")
     status = Column(String, nullable=False)
-    payment_gateway_charge_id = Column(String, unique=True)
+    payment_gateway_charge_id = Column(String, unique=True)  # order_id (예: owl_123_1696305600_pro)
+    payment_key = Column(String, unique=True, index=True)    # 토스페이먼츠 결제 고유 ID (취소/환불 추적용)
     created_at = Column(DateTime, default=func.now())
 
     user = relationship("User", back_populates="payments")

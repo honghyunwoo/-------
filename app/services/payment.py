@@ -14,8 +14,8 @@ from app.models.subscription import Payment, Subscription
 from app.models.user import User
 
 # 토스페이먼츠 설정
-TOSS_CLIENT_KEY = os.getenv("TOSS_CLIENT_KEY", "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq")
-TOSS_SECRET_KEY = os.getenv("TOSS_SECRET_KEY", "test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R")
+TOSS_CLIENT_KEY = os.getenv("TOSS_PAYMENTS_CLIENT_KEY", os.getenv("TOSS_CLIENT_KEY", "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq"))
+TOSS_SECRET_KEY = os.getenv("TOSS_PAYMENTS_SECRET_KEY", os.getenv("TOSS_SECRET_KEY", "test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R"))
 TOSS_BASE_URL = "https://api.tosspayments.com" 
 
 def confirm_payment(db: Session, user: User, payment_key: str, order_id: str, amount: int):
@@ -35,7 +35,7 @@ def confirm_payment(db: Session, user: User, payment_key: str, order_id: str, am
     }
 
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=8)
         response.raise_for_status()
         payment_data = response.json()
 
@@ -52,45 +52,62 @@ def confirm_payment(db: Session, user: User, payment_key: str, order_id: str, am
         # Handle API request errors
         raise HTTPException(status_code=500, detail=f"Toss Payments API error: {e}")
 
-def _update_user_subscription(db: Session, user: User, plan: str, amount: int, order_id: str):
+def _update_user_subscription(db: Session, user: User, plan: str, amount: int, order_id: str, payment_key: str = None):
     """
     Updates user's subscription plan and credits, and logs the payment.
+
+    Args:
+        db: Database session
+        user: User object
+        plan: Subscription plan (basic, pro, business)
+        amount: Payment amount
+        order_id: Order ID (payment_gateway_charge_id)
+        payment_key: Toss Payments payment key (for cancellation tracking)
     """
-    # Update user credits and plan
-    if plan == "business":
-        user.credits = -1  # 무제한
-    elif plan == "pro":
-        user.credits = 100
-    elif plan == "basic":
-        user.credits = 20
-    user.subscription_plan = plan
+    try:
+        # Update user credits and plan
+        if plan == "business":
+            user.credits = -1  # 무제한
+        elif plan == "pro":
+            user.credits = 100
+        elif plan == "basic":
+            user.credits = 20
+        user.subscription_plan = plan
 
-    # Deactivate previous active subscriptions
-    db.query(Subscription).filter(Subscription.user_id == user.id, Subscription.is_active == 1).update({"is_active": 0})
+        # Deactivate previous active subscriptions
+        db.query(Subscription).filter(Subscription.user_id == user.id, Subscription.is_active == 1).update({"is_active": 0})
 
-    # Create new subscription record
-    end_date = datetime.now() + timedelta(days=30)
-    subscription = Subscription(
-        user_id=user.id,
-        plan=plan,
-        end_date=end_date,
-        is_active=1,
-    )
-    db.add(subscription)
-    db.flush() # To get the subscription ID for the payment record
+        # Create new subscription record
+        start_date = datetime.now()
+        end_date = start_date + timedelta(days=30)
+        subscription = Subscription(
+            user_id=user.id,
+            plan=plan,
+            start_date=start_date,  # 명시적 설정
+            end_date=end_date,
+            is_active=1,
+        )
+        db.add(subscription)
+        db.flush() # To get the subscription ID for the payment record
 
-    # Create new payment record
-    payment = Payment(
-        user_id=user.id,
-        subscription_id=subscription.id,
-        amount=amount,
-        currency="KRW",
-        status="succeeded",
-        payment_gateway_charge_id=order_id
-    )
-    db.add(payment)
+        # Create new payment record
+        payment = Payment(
+            user_id=user.id,
+            subscription_id=subscription.id,
+            amount=amount,
+            currency="KRW",
+            status="succeeded",
+            payment_gateway_charge_id=order_id,
+            payment_key=payment_key  # 취소/환불 추적용
+        )
+        db.add(payment)
 
-    db.commit()
+        db.commit()
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Failed to update subscription: {e}", exc_info=True)
+        raise
 
 def verify_webhook_signature(payload: str, signature: str) -> bool:
     """
@@ -216,7 +233,7 @@ def _handle_payment_status_changed(db: Session, payload: dict) -> dict:
                 return {"status": "error", "message": "User not found"}
 
             # 구독 업데이트
-            _update_user_subscription(db, user, plan, amount, order_id)
+            _update_user_subscription(db, user, plan, amount, order_id, payment_key)
             logger.info(f"✅ Subscription activated - User: {user.email}, Plan: {plan}")
 
             return {"status": "success", "message": "Payment processed"}
@@ -231,7 +248,29 @@ def _handle_payment_status_changed(db: Session, payload: dict) -> dict:
             return {"status": "success", "message": "Payment canceled"}
 
         elif status == "ABORTED":
-            # 결제 승인 실패
+            # 결제 승인 실패 - 재시도 가능하도록 저장
+            if not existing_payment:
+                # 결제 레코드가 없으면 생성 (재시도용)
+                try:
+                    parts = order_id.split("_")
+                    user_id = int(parts[1])
+                except (IndexError, ValueError):
+                    logger.error(f"❌ Invalid order_id format: {order_id}")
+                    return {"status": "error", "message": "Invalid order_id"}
+
+                payment_record = Payment(
+                    user_id=user_id,
+                    subscription_id=None,  # 아직 구독 없음
+                    amount=amount,
+                    currency="KRW",
+                    status="aborted",
+                    payment_gateway_charge_id=order_id,
+                    payment_key=payment_key
+                )
+                db.add(payment_record)
+                db.commit()
+                logger.info(f"💾 Aborted payment saved for retry: {order_id}")
+
             logger.warning(f"⚠️ Payment aborted: {order_id}")
             return {"status": "success", "message": "Payment aborted"}
 
@@ -297,13 +336,13 @@ def _handle_cancel_status_changed(db: Session, payload: dict) -> dict:
         data = payload.get("data", {})
         payment_key = data.get("paymentKey")
         cancel_amount = data.get("cancelAmount")
-        cancel_reason = data.get("cancelReason")
+        cancel_reason = data.get("cancelReason", "")[:50]  # 길이 제한 (로깅)
 
-        logger.info(f"🔄 Cancel status changed - Payment: {payment_key}, Amount: {cancel_amount}, Reason: {cancel_reason}")
+        logger.info(f"🔄 Cancel status changed - Payment: {payment_key}, Amount: ***masked***, Reason: {cancel_reason}")
 
-        # 결제 레코드 찾기
+        # 결제 레코드 찾기 (payment_key로 조회)
         payment = db.query(Payment).filter(
-            Payment.payment_gateway_charge_id == payment_key
+            Payment.payment_key == payment_key
         ).first()
 
         if payment:
@@ -314,8 +353,13 @@ def _handle_cancel_status_changed(db: Session, payload: dict) -> dict:
 
             if subscription:
                 subscription.is_active = 0
+                payment.status = "canceled"  # 결제 상태도 업데이트
                 db.commit()
                 logger.info(f"✅ Subscription deactivated due to cancellation: {payment_key}")
+            else:
+                logger.warning(f"⚠️ Subscription not found for payment: {payment_key}")
+        else:
+            logger.warning(f"⚠️ Payment not found for cancellation: {payment_key}")
 
         return {"status": "success", "message": "Cancel processed"}
 
@@ -338,7 +382,7 @@ def _fetch_payment_info(transaction_key: str) -> dict:
         }
 
         url = f"{TOSS_BASE_URL}/v1/payments/orders/{transaction_key}"
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=5)
         response.raise_for_status()
 
         return response.json()
@@ -393,17 +437,27 @@ def retry_failed_payment(db: Session, payment_id: int, max_retries: int = 3) -> 
             try:
                 logger.info(f"🔄 Payment retry attempt {attempt}/{max_retries} - Order: {order_id}")
 
-                response = requests.get(url, headers=headers)
+                response = requests.get(url, headers=headers, timeout=5)
                 response.raise_for_status()
                 payment_data = response.json()
 
                 if payment_data.get("status") == "DONE":
+                    # 멱등성 체크
+                    if payment_record.status == "succeeded":
+                        logger.info(f"✅ Payment already succeeded: {payment_id}")
+                        return {"status": "success", "message": "Already succeeded"}
+
                     # 결제 성공 - 구독 업데이트
                     user = db.query(User).filter(User.id == payment_record.user_id).first()
-                    parts = order_id.split("_")
-                    plan = parts[3]
+                    try:
+                        parts = order_id.split("_")
+                        plan = parts[3]
+                    except (IndexError, ValueError):
+                        logger.error(f"❌ Invalid order_id format in retry: {order_id}")
+                        return {"status": "error", "message": "Invalid order_id"}
 
-                    _update_user_subscription(db, user, plan, payment_record.amount, order_id)
+                    payment_key = payment_data.get("paymentKey")
+                    _update_user_subscription(db, user, plan, payment_record.amount, order_id, payment_key)
                     logger.info(f"✅ Payment retry succeeded - Order: {order_id}")
 
                     return {"status": "success", "message": "Payment retry succeeded"}
@@ -434,19 +488,24 @@ def retry_failed_payment(db: Session, payment_id: int, max_retries: int = 3) -> 
 
 def get_failed_payments(db: Session, hours: int = 24) -> list:
     """
-    최근 실패한 결제 목록을 조회합니다.
+    최근 실패/대기 중인 결제 목록을 조회합니다.
 
     Args:
         db: 데이터베이스 세션
         hours: 조회 기간 (기본 24시간)
 
     Returns:
-        list: 실패한 결제 레코드 목록
+        list: 실패/대기 중인 결제 레코드 목록
+
+    Note:
+        실제 사용 상태: "succeeded", "canceled", "aborted"
+        이 함수는 aborted 상태의 결제를 재시도 대상으로 반환합니다.
     """
     cutoff_time = datetime.now() - timedelta(hours=hours)
 
+    # "aborted" 상태만 재시도 대상 (결제 승인 실패)
     failed_payments = db.query(Payment).filter(
-        Payment.status.in_(["failed", "pending"]),
+        Payment.status == "aborted",
         Payment.created_at >= cutoff_time
     ).all()
 
