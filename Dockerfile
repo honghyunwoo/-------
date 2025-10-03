@@ -1,44 +1,69 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+# 🦉 올빼미 AI 영상 스튜디오 - Production Dockerfile
+# Multi-stage build for optimized image size
 
-# Set the working directory in the container
-WORKDIR /MoneyPrinterTurbo
+# Stage 1: Builder
+FROM python:3.11-slim-bullseye AS builder
 
-# 设置/MoneyPrinterTurbo目录权限为777
-RUN chmod 777 /MoneyPrinterTurbo
+WORKDIR /app
 
-ENV PYTHONPATH="/MoneyPrinterTurbo"
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
     git \
-    imagemagick \
-    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Fix security policy for ImageMagick
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Stage 2: Production
+FROM python:3.11-slim-bullseye
+
+WORKDIR /app
+
+# Create non-root user for security
+RUN groupadd -r owlstudio && useradd -r -g owlstudio owlstudio
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    imagemagick \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Fix ImageMagick security policy
 RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
 
-# Copy only the requirements.txt first to leverage Docker cache
-COPY requirements.txt ./
+# Copy Python packages from builder
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Now copy the rest of the codebase into the image
+# Copy application code
 COPY . .
 
-# Expose the port the app runs on
-EXPOSE 8501
+# Create necessary directories
+RUN mkdir -p logs storage/videos && \
+    chown -R owlstudio:owlstudio /app
 
-# Command to run the application
-CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False"]
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    APP_ENV=production
 
-# 1. Build the Docker image using the following command
-# docker build -t moneyprinterturbo .
+# Expose ports
+EXPOSE 8080 8501
 
-# 2. Run the Docker container using the following command
-## For Linux or MacOS:
-# docker run -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
-## For Windows:
-# docker run -v ${PWD}/config.toml:/MoneyPrinterTurbo/config.toml -v ${PWD}/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Switch to non-root user
+USER owlstudio
+
+# Default command: Run FastAPI with Uvicorn
+CMD ["uvicorn", "app.asgi:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4"]
+
+# Alternative: Run Streamlit WebUI
+# CMD ["streamlit", "run", "./webui/Main.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableCORS=true", "--browser.gatherUsageStats=false"]
