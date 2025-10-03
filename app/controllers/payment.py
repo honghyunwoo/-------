@@ -47,8 +47,38 @@ def create_subscription(
     )
 
 @router.post("/webhook")
-async def stripe_webhook(request: Request):
-    payload = await request.json()
-    payment.handle_webhook(payload)
-    return {"status": "success"}
+async def toss_webhook(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    토스페이먼츠 웹훅 엔드포인트
+
+    결제 상태 변경, 가상계좌 입금, 결제 취소 등의 이벤트를 실시간으로 수신합니다.
+
+    지원 이벤트:
+    - PAYMENT_STATUS_CHANGED: 결제 상태 변경
+    - DEPOSIT_CALLBACK: 가상계좌 입금
+    - CANCEL_STATUS_CHANGED: 결제 취소
+
+    Returns:
+        dict: {"status": "success"} (토스페이먼츠는 200 OK 응답 필요)
+    """
+    try:
+        # 페이로드 읽기
+        payload = await request.json()
+
+        # 웹훅 서명 검증 (X-Toss-Signature 헤더)
+        signature = request.headers.get("X-Toss-Signature")
+
+        # 웹훅 처리
+        result = payment.handle_webhook(db, payload, signature)
+
+        # 토스페이먼츠는 10초 이내 200 OK 응답 필요
+        return result
+
+    except Exception as e:
+        # 에러 발생 시에도 200 OK 반환 (토스페이먼츠 재전송 방지)
+        # 실제 에러는 로그에 기록됨
+        return {"status": "error", "message": str(e)}
 

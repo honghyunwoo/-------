@@ -190,6 +190,112 @@ def apply_env_overrides(config):
 
 ---
 
+### ERR-010: 결제 웹훅 미완성
+**발견일**: 2025-10-03
+**해결일**: 2025-10-03
+**상태**: ✅ FIXED
+**우선순위**: P0 (최고)
+
+**위치**:
+```python
+# app/services/payment.py:92-110
+def handle_webhook(payload: dict):
+    print(f"Webhook received: {payload}")
+    # In a real app, you'd parse the payload and update the DB accordingly.
+    return {"status": "success"}
+```
+
+**문제**:
+- 토스페이먼츠 웹훅 핸들러가 스켈레톤만 존재
+- 실제 결제 이벤트 처리 안 됨
+- 가상계좌 입금 확인 불가
+- 결제 취소 처리 안 됨
+- 보안 검증 없음
+
+**영향**:
+- 🔴 심각: 결제 완료 후 구독 활성화 안 됨
+- 🔴 심각: 가상계좌 입금 확인 불가
+- 🔴 심각: 상용화 배포 불가능
+- 🟠 높음: 수동 처리 필요 (운영 부담)
+
+**해결 방법**:
+
+1. **웹훅 서명 검증** (HMAC SHA256)
+```python
+def verify_webhook_signature(payload: str, signature: str) -> bool:
+    computed_signature = hmac.new(
+        TOSS_SECRET_KEY.encode(),
+        payload.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(computed_signature, signature)
+```
+
+2. **결제 상태 처리** (10+ 시나리오)
+```python
+def _handle_payment_status_changed(db: Session, payload: dict) -> dict:
+    status = payload["data"]["status"]
+
+    if status == "DONE":
+        # 구독 활성화
+        _update_user_subscription(db, user, plan, amount, order_id)
+
+    elif status == "CANCELED":
+        # 취소 처리
+        payment.status = "canceled"
+
+    # ... ABORTED, EXPIRED 등 8가지 상태 처리
+```
+
+3. **가상계좌 입금 처리**
+```python
+def _handle_deposit_callback(db: Session, payload: dict) -> dict:
+    payment_data = _fetch_payment_info(transaction_key)
+    return _handle_payment_status_changed(db, payment_data)
+```
+
+4. **멱등성 보장** (중복 웹훅 방지)
+```python
+existing_payment = db.query(Payment).filter(
+    Payment.payment_gateway_charge_id == order_id
+).first()
+
+if existing_payment and existing_payment.status == "succeeded":
+    return {"status": "success", "message": "Already processed"}
+```
+
+**조치 완료**:
+- [x] 웹훅 서명 검증 구현 (HMAC SHA256)
+- [x] PAYMENT_STATUS_CHANGED 핸들러 (8가지 상태)
+- [x] DEPOSIT_CALLBACK 핸들러 (가상계좌)
+- [x] CANCEL_STATUS_CHANGED 핸들러 (취소)
+- [x] 멱등성 보장 (중복 방지)
+- [x] 재시도 로직 (지수 백오프)
+- [x] 테스트 작성 (5개 케이스 통과)
+- [x] 문서 작성 (PAYMENT_WEBHOOK_GUIDE.md)
+
+**테스트 결과**:
+```
+[SUCCESS] All payment webhook tests passed!
+
+Processed Scenarios:
+  [PASS] Webhook signature verification (security)
+  [PASS] Payment completed (DONE)
+  [PASS] Payment canceled (CANCELED)
+  [PASS] Idempotency guarantee (prevent duplicates)
+  [PASS] Retry logic
+```
+
+**관련 문서**:
+- [claudedocs/PAYMENT_WEBHOOK_GUIDE.md](./PAYMENT_WEBHOOK_GUIDE.md)
+- [app/services/payment.py](../app/services/payment.py)
+- [tests/unit/test_payment_webhook.py](../tests/unit/test_payment_webhook.py)
+
+**담당자**: Claude
+**완료일**: 2025-10-03 09:00
+
+---
+
 ### ERR-003: Rate Limiting 부재
 **발견일**: 2025-10-03
 **상태**: 🆕 NEW
@@ -515,7 +621,46 @@ mv app/controllers/v1/1_Admin_Dashboard.py \
 - **소요 시간**: 0.5시간
 - **영향**: 보안 취약점 제거, ERR-001과 일관성 확보
 
+#### ERR-010: 결제 웹훅 미완성 ✅
+- **해결 방법**: 완전한 웹훅 핸들러 구현 (10+ 시나리오)
+- **커밋**: (다음 커밋)
+- **소요 시간**: 3시간
+- **영향**: 상용화 최대 블로커 해결, 결제 자동화 완성
+- **문서**: PAYMENT_WEBHOOK_GUIDE.md
+- **테스트**: 5개 케이스 통과
+- **기능**:
+  - ✅ 웹훅 서명 검증 (HMAC SHA256)
+  - ✅ 결제 상태 처리 (8가지)
+  - ✅ 가상계좌 입금 처리
+  - ✅ 결제 취소 처리
+  - ✅ 멱등성 보장
+  - ✅ 재시도 로직
+
 ---
 
-**마지막 업데이트**: 2025-10-03 23:00
+## 📊 통계
+
+### 전체 오류 현황
+- **총 오류**: 10개
+- **해결 완료**: 7개 (70%)
+- **진행 중**: 0개
+- **신규**: 3개 (30%)
+
+### 우선순위별 현황
+- **P0 (CRITICAL)**: 3개 → ✅ 3개 해결 (100%)
+- **P1 (HIGH)**: 4개 → ✅ 3개 해결 (75%)
+- **P2 (MEDIUM)**: 3개 → ✅ 1개 해결 (33%)
+
+### Week 1 진행률
+- **계획 오류**: ERR-001, ERR-004, ERR-006, ERR-007, ERR-009, ERR-010
+- **완료**: 6개/6개 (100%) ✅
+- **상태**: **Week 1 완료!**
+
+### 상용화 블로커 (Phase 1)
+- **ERR-010 (결제 웹훅)**: ✅ 해결 (Day 1-3)
+- **다음 작업**: 구독 자동 갱신 (Day 4-5)
+
+---
+
+**마지막 업데이트**: 2025-10-03 09:00
 **다음 리뷰**: 2025-10-04 09:00
