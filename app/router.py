@@ -11,7 +11,7 @@ from fastapi import APIRouter
 
 from app.controllers import auth, payment, template, team
 from app.monitoring import health
-from app.controllers.v1 import llm, video
+from app.controllers.v1 import llm, video, credits, history
 
 root_api_router = APIRouter()
 # v1
@@ -23,6 +23,12 @@ root_api_router.include_router(auth.router, prefix="/auth", tags=["Authenticatio
 
 # payment
 root_api_router.include_router(payment.router, prefix="/payment", tags=["Payment"])
+
+# credits
+root_api_router.include_router(credits.router, prefix="/credits", tags=["Credits"])
+
+# history
+root_api_router.include_router(history.router, prefix="/history", tags=["History"])
 
 # templates
 root_api_router.include_router(template.router, prefix="/templates", tags=["Templates"])

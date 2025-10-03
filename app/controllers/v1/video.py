@@ -24,6 +24,7 @@ from app.services import auth, state as sm, usage
 from app.utils import utils
 from app.config.config import config
 from app.worker import generate_video_task
+from app.middleware.security import user_limiter
 
 # 인증 의존성
 # router = new_router(dependencies=[Depends(base.verify_token)])
@@ -31,8 +32,9 @@ router = new_router()
 
 
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
+@user_limiter.limit("20/hour")  # 시간당 20회 영상 생성 제한
 def create_video(
-    request: Request, 
+    request: Request,
     body: TaskVideoRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(auth.get_current_user),

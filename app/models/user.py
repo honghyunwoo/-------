@@ -23,10 +23,14 @@ class User(Base):
     pexels_api_keys = Column(LargeBinary, nullable=True)
     pixabay_api_keys = Column(LargeBinary, nullable=True)
 
+    # Email verification
+    is_verified = Column(Boolean, default=False)
+
     # Relationships
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="user", cascade="all, delete-orphan")
     video_history = relationship("VideoHistory", back_populates="user", cascade="all, delete-orphan")
+    credit_history = relationship("CreditHistory", back_populates="user", cascade="all, delete-orphan")
     templates = relationship("Template", back_populates="user", cascade="all, delete-orphan")
     branding = relationship("Branding", back_populates="user", uselist=False, cascade="all, delete-orphan")
     owned_teams = relationship("Team", back_populates="owner", cascade="all, delete-orphan")

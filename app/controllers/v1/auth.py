@@ -8,6 +8,7 @@ from app.services import auth as auth_service
 from app.services import email as email_service
 from app.models.schema import UserCreate, UserLogin, Token, UserResponse
 from app.utils import utils
+from app.middleware.security import limiter
 
 router = APIRouter()
 
@@ -15,7 +16,8 @@ router = APIRouter()
 @router.post(
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
-def register_user(user_create: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("5/hour")  # 시간당 5회 회원가입 제한
+def register_user(request: Request, user_create: UserCreate, db: Session = Depends(get_db)):
     """
     Register a new user.
     """
@@ -36,7 +38,8 @@ def register_user(user_create: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login_for_access_token(form_data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")  # 분당 10회 로그인 시도 제한 (Brute Force 방지)
+def login_for_access_token(request: Request, form_data: UserLogin, db: Session = Depends(get_db)):
     """
     Log in a user and return an access token.
     """
