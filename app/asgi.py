@@ -17,6 +17,11 @@ from app.models.exception import HttpException
 from app.router import root_api_router
 from app.utils import utils
 from app.middleware.security import setup_security_middleware
+from app.monitoring.sentry_config import init_sentry
+from app.middleware.monitoring import (
+    PerformanceMonitoringMiddleware,
+    UserActivityMonitoringMiddleware,
+)
 
 
 def exception_handler(request: Request, e: HttpException):
@@ -107,6 +112,10 @@ app = get_application()
 # 보안 미들웨어 설정
 app = setup_security_middleware(app)
 
+# 모니터링 미들웨어 추가
+app.add_middleware(PerformanceMonitoringMiddleware)
+app.add_middleware(UserActivityMonitoringMiddleware)
+
 task_dir = utils.task_dir()
 app.mount(
     "/tasks", StaticFiles(directory=task_dir, html=True, follow_symlink=True), name=""
@@ -131,6 +140,19 @@ def shutdown_event():
 @app.on_event("startup")
 async def startup_event():
     logger.info("startup event")
+
+    # Sentry 초기화
+    try:
+        app_env = os.getenv("APP_ENV", "development")
+        init_sentry(
+            environment=app_env,
+            traces_sample_rate=0.1 if app_env == "production" else 1.0,
+            profiles_sample_rate=0.1 if app_env == "production" else 1.0,
+        )
+        logger.info(f"Sentry initialized for {app_env} environment")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Sentry: {e}")
+
     try:
         create_all_tables()
         logger.info("Database tables created.")
