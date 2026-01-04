@@ -37,7 +37,13 @@ def _load_scripts() -> list[dict]:
     scripts_file = settings.scripts_dir / "stoic_premium.json"
     if scripts_file.exists():
         with open(scripts_file) as f:
-            return json.load(f)
+            data = json.load(f)
+            # Handle both formats: list or dict with 'scripts' key
+            if isinstance(data, list):
+                return data
+            elif isinstance(data, dict) and "scripts" in data:
+                return data["scripts"]
+            return []
     return []
 
 

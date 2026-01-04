@@ -118,6 +118,17 @@ class Script(BaseModel):
     def from_json(cls, data: dict[str, Any]) -> "Script":
         """Create Script from JSON data (e.g., from scripts_premium.json)."""
         script_data = data.get("script", {})
+
+        # Parse duration_estimate (handle "28초" format)
+        duration_raw = data.get("duration_estimate", 45.0)
+        if isinstance(duration_raw, str):
+            # Extract number from string like "28초"
+            import re
+            match = re.search(r"(\d+)", duration_raw)
+            duration = float(match.group(1)) if match else 45.0
+        else:
+            duration = float(duration_raw)
+
         return cls(
             id=data["id"],
             quote=data["quote"],
@@ -128,5 +139,5 @@ class Script(BaseModel):
             explanation=script_data["explanation"],
             cta=script_data["cta"],
             tts_text=data.get("tts_text", ""),
-            duration_estimate=data.get("duration_estimate", 45.0),
+            duration_estimate=duration,
         )
