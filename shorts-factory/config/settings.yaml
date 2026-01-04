@@ -1,0 +1,68 @@
+# Shorts Factory 설정
+
+# 채널 설정
+channels:
+  stoic:
+    name: "매일 스토아"
+    language: "ko"
+    tts_provider: "typecast"
+    tts_voice_id: "your-voice-id"
+    themes: ["philosophy", "motivation", "self-improvement"]
+
+  english:
+    name: "English Shorts"
+    language: "en"
+    tts_provider: "elevenlabs"
+    tts_voice_id: "your-voice-id"
+    themes: ["english", "learning", "expressions"]
+
+# 영상 설정
+video:
+  width: 1080
+  height: 1920
+  fps: 30
+  codec: "libx264"
+  audio_codec: "aac"
+  bitrate: "5M"
+
+# 자막 설정
+subtitle:
+  font: "NotoSerifKR-Bold"
+  fontsize: 48
+  color: "white"
+  highlight_color: "#D4AF37"
+  position: "bottom"
+  max_chars_per_line: 15
+
+# BGM 설정
+bgm:
+  volume: 0.2
+  fade_duration: 1.0
+
+# 경로 설정
+paths:
+  assets: "./assets"
+  templates: "./templates"
+  output: "./output"
+  fonts: "./assets/fonts"
+  bgm: "./assets/bgm"
+  broll: "./assets/b-roll"
+
+# 파이프라인 설정
+pipeline:
+  review_min_score: 8.0
+  review_max_iterations: 3
+  default_hook_type: "H1"
+  default_cta_type: "C3"
+
+# Claude API 설정
+claude:
+  model: "claude-sonnet-4-20250514"
+  max_tokens: 1000
+  temperature: 0.7
+
+# 로깅 설정
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "./logs/shorts-factory.log"

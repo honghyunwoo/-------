@@ -1,0 +1,459 @@
+{
+  "quotes": [
+    {
+      "id": 1,
+      "text": "우리를 괴롭히는 것은 일 자체가 아니라, 그 일에 대한 우리의 생각이다.",
+      "text_original": "It is not things that disturb us, but our judgments about things.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "엥케이리디온",
+      "themes": [
+        "마음",
+        "생각",
+        "역경"
+      ],
+      "used_count": 2,
+      "last_used": "2026-01-03 16:41:05"
+    },
+    {
+      "id": 2,
+      "text": "매일 아침 스스로에게 말하라. 오늘 나는 참견하는 사람, 배은망덕한 사람, 오만한 사람을 만날 것이다.",
+      "text_original": "Begin each day by telling yourself: Today I shall be meeting with interference, ingratitude, insolence...",
+      "author": "마르쿠스 아우렐리우스",
+      "author_en": "Marcus Aurelius",
+      "source": "명상록",
+      "themes": [
+        "인간관계",
+        "준비",
+        "마음"
+      ],
+      "used_count": 1,
+      "last_used": "2026-01-03 16:35:23"
+    },
+    {
+      "id": 3,
+      "text": "운명이 가져다주는 것을 마치 자신이 선택한 것처럼 사랑하라.",
+      "text_original": "Accept the things to which fate binds you, and love the people with whom fate brings you together.",
+      "author": "마르쿠스 아우렐리우스",
+      "author_en": "Marcus Aurelius",
+      "source": "명상록",
+      "themes": [
+        "운명",
+        "수용",
+        "사랑"
+      ],
+      "used_count": 1,
+      "last_used": "2026-01-03 16:35:42"
+    },
+    {
+      "id": 4,
+      "text": "진정한 행복은 덕에 있다. 나머지는 모두 가치 없는 것이다.",
+      "text_original": "True happiness is to enjoy the present, without anxious dependence upon the future.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "도덕 서한집",
+      "themes": [
+        "행복",
+        "덕",
+        "가치"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 5,
+      "text": "우리에게는 두 개의 귀와 하나의 입이 있다. 그래서 말하는 것보다 두 배 더 들어야 한다.",
+      "text_original": "We have two ears and one mouth so that we can listen twice as much as we speak.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "어록",
+      "themes": [
+        "경청",
+        "지혜",
+        "소통"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 6,
+      "text": "어려움 없이 얻은 승리는 영광이 없다.",
+      "text_original": "It is not because things are difficult that we do not dare; it is because we do not dare that things are difficult.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "도덕 서한집",
+      "themes": [
+        "역경",
+        "성장",
+        "도전"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 7,
+      "text": "당신이 통제할 수 있는 것에 집중하고, 나머지는 내려놓아라.",
+      "text_original": "Make the best use of what is in your power, and take the rest as it happens.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "엥케이리디온",
+      "themes": [
+        "통제",
+        "평정",
+        "집중"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 8,
+      "text": "시간을 낭비하는 것은 가장 비싼 낭비다.",
+      "text_original": "It is not that we have a short time to live, but that we waste a lot of it.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "인생의 짧음에 관하여",
+      "themes": [
+        "시간",
+        "삶",
+        "가치"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 9,
+      "text": "장애물이 곧 길이 된다.",
+      "text_original": "The impediment to action advances action. What stands in the way becomes the way.",
+      "author": "마르쿠스 아우렐리우스",
+      "author_en": "Marcus Aurelius",
+      "source": "명상록",
+      "themes": [
+        "역경",
+        "성장",
+        "관점"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 10,
+      "text": "분노를 품는 것은 독을 마시고 상대방이 죽기를 기대하는 것과 같다.",
+      "text_original": "How much more grievous are the consequences of anger than the causes of it.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "분노에 관하여",
+      "themes": [
+        "분노",
+        "마음",
+        "평정"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 11,
+      "text": "자유로운 사람은 자신이 원하는 대로 사는 사람이 아니라, 자신에게 일어나는 일을 원하는 사람이다.",
+      "text_original": "Freedom is not procured by a full enjoyment of what is desired, but by controlling the desire.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "어록",
+      "themes": [
+        "자유",
+        "욕망",
+        "수용"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 12,
+      "text": "고통받는 것은 선택이다. 만약 고통스럽다면, 그것은 외부 때문이 아니라 당신의 판단 때문이다.",
+      "text_original": "If you are distressed by anything external, the pain is not due to the thing itself, but to your estimate of it.",
+      "author": "마르쿠스 아우렐리우스",
+      "author_en": "Marcus Aurelius",
+      "source": "명상록",
+      "themes": [
+        "고통",
+        "선택",
+        "마음"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 13,
+      "text": "운명은 용기 있는 자를 돕고, 두려워하는 자를 내친다.",
+      "text_original": "Luck is what happens when preparation meets opportunity.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "도덕 서한집",
+      "themes": [
+        "용기",
+        "운명",
+        "준비"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 14,
+      "text": "행복해지기를 원한다면, 행복해지려고 하지 마라.",
+      "text_original": "Wealth consists not in having great possessions, but in having few wants.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "어록",
+      "themes": [
+        "행복",
+        "욕망",
+        "만족"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 15,
+      "text": "모든 것은 변한다. 그것을 두려워하지 말고, 그것과 함께 흘러가라.",
+      "text_original": "Loss is nothing else but change, and change is Nature's delight.",
+      "author": "마르쿠스 아우렐리우스",
+      "author_en": "Marcus Aurelius",
+      "source": "명상록",
+      "themes": [
+        "변화",
+        "수용",
+        "흐름"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 16,
+      "text": "매일 조금씩 더 나아지면, 결국 큰 결과를 얻게 된다.",
+      "text_original": "Every day, in every way, I am getting better and better.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "도덕 서한집",
+      "themes": [
+        "성장",
+        "습관",
+        "꾸준함"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 17,
+      "text": "다른 사람의 잘못을 용서하는 것이 자신을 위한 것이다.",
+      "text_original": "The best revenge is not to be like your enemy.",
+      "author": "마르쿠스 아우렐리우스",
+      "author_en": "Marcus Aurelius",
+      "source": "명상록",
+      "themes": [
+        "용서",
+        "평정",
+        "자기관리"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 18,
+      "text": "오늘 하루를 마지막인 것처럼 살되, 영원히 살 것처럼 배워라.",
+      "text_original": "Begin at once to live, and count each separate day as a separate life.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "도덕 서한집",
+      "themes": [
+        "삶",
+        "시간",
+        "배움"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 19,
+      "text": "현명한 사람은 모든 상황에서 이익을 찾고, 어리석은 사람은 모든 상황에서 손해를 본다.",
+      "text_original": "No man is free who is not master of himself.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "어록",
+      "themes": [
+        "지혜",
+        "관점",
+        "선택"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 20,
+      "text": "아침에 눈을 뜨면 감사하라. 살아 있고, 생각할 수 있고, 즐길 수 있고, 사랑할 수 있으니.",
+      "text_original": "When you arise in the morning, think of what a precious privilege it is to be alive.",
+      "author": "마르쿠스 아우렐리우스",
+      "author_en": "Marcus Aurelius",
+      "source": "명상록",
+      "themes": [
+        "감사",
+        "삶",
+        "긍정"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 21,
+      "text": "결과에 집착하지 말고, 행동 자체에 집중하라.",
+      "text_original": "First say to yourself what you would be; and then do what you have to do.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "어록",
+      "themes": [
+        "집중",
+        "행동",
+        "과정"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 22,
+      "text": "진정한 부는 적은 것으로도 만족하는 능력이다.",
+      "text_original": "It is not the man who has too little, but the man who craves more, that is poor.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "도덕 서한집",
+      "themes": [
+        "만족",
+        "부",
+        "욕망"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 23,
+      "text": "네가 겪는 어려움은 네가 감당할 수 있기 때문에 주어진 것이다.",
+      "text_original": "Never say of anything, I have lost it; but, I have returned it.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "엥케이리디온",
+      "themes": [
+        "역경",
+        "강인함",
+        "성장"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 24,
+      "text": "죽음을 두려워하는 것은 현명하지 못한 것이다. 어차피 모두에게 오는 것이니.",
+      "text_original": "It is not death that a man should fear, but he should fear never beginning to live.",
+      "author": "마르쿠스 아우렐리우스",
+      "author_en": "Marcus Aurelius",
+      "source": "명상록",
+      "themes": [
+        "죽음",
+        "삶",
+        "두려움"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 25,
+      "text": "철학은 삶의 의술이다.",
+      "text_original": "Philosophy is not a theory but an activity.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "도덕 서한집",
+      "themes": [
+        "철학",
+        "삶",
+        "실천"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 26,
+      "text": "타인의 시선에 흔들리는 것은 자기 자신을 잃는 것이다.",
+      "text_original": "Care about people's approval and you will be their prisoner.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "어록",
+      "themes": [
+        "자기확신",
+        "독립",
+        "마음"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 27,
+      "text": "네 안에 있는 것에 집중하라. 밖에 있는 것은 네 것이 아니다.",
+      "text_original": "You have power over your mind - not outside events. Realize this, and you will find strength.",
+      "author": "마르쿠스 아우렐리우스",
+      "author_en": "Marcus Aurelius",
+      "source": "명상록",
+      "themes": [
+        "내면",
+        "통제",
+        "힘"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 28,
+      "text": "고통은 피할 수 없지만, 고통받는 것은 선택이다.",
+      "text_original": "We suffer more often in imagination than in reality.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "도덕 서한집",
+      "themes": [
+        "고통",
+        "선택",
+        "상상"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 29,
+      "text": "침묵하는 것이 말하는 것보다 나은 경우가 많다.",
+      "text_original": "Better to trip with the feet than with the tongue.",
+      "author": "에픽테토스",
+      "author_en": "Epictetus",
+      "source": "어록",
+      "themes": [
+        "침묵",
+        "말",
+        "지혜"
+      ],
+      "used_count": 0,
+      "last_used": null
+    },
+    {
+      "id": 30,
+      "text": "오늘 할 수 있는 일을 내일로 미루지 마라. 내일은 오지 않을 수도 있다.",
+      "text_original": "While we wait for life, life passes.",
+      "author": "세네카",
+      "author_en": "Seneca",
+      "source": "도덕 서한집",
+      "themes": [
+        "시간",
+        "행동",
+        "미루기"
+      ],
+      "used_count": 0,
+      "last_used": null
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "total_quotes": 30,
+    "last_updated": "2026-01-03"
+  }
+}

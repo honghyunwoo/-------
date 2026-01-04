@@ -1,0 +1,79 @@
+{
+  "hooks": {
+    "H1": {
+      "name": "질문형",
+      "description": "시청자에게 직접 질문하여 호기심 유발",
+      "templates": [
+        "당신은 왜 매일 같은 {topic}을 반복할까요?",
+        "{topic}에 지쳐있다면, 이 영상을 끝까지 보세요.",
+        "왜 {topic}이 당신을 힘들게 할까요?",
+        "{topic}을 극복하는 방법, 알고 싶지 않으세요?",
+        "당신의 {topic}, 정말 해결할 수 없을까요?"
+      ],
+      "topics": ["걱정", "불안", "스트레스", "고민", "두려움"],
+      "recommended_frequency": "주 2회"
+    },
+    "H2": {
+      "name": "충격형",
+      "description": "놀라운 사실로 시선 끌기",
+      "templates": [
+        "2000년 전 노예가 한 이 말이 당신의 인생을 바꿉니다.",
+        "{author}의 이 한마디가 CEO들을 사로잡았습니다.",
+        "로마 황제가 매일 아침 되뇌인 이 문장.",
+        "역사상 가장 강력한 {topic} 명언.",
+        "이 한 문장이 수천 년간 전해져 온 이유."
+      ],
+      "authors": ["에픽테토스", "마르쿠스 아우렐리우스", "세네카"],
+      "recommended_frequency": "주 1회"
+    },
+    "H3": {
+      "name": "공감형",
+      "description": "시청자의 감정에 공감",
+      "templates": [
+        "{emotion}, 스토아 철학자들도 겪었습니다.",
+        "당신만 {emotion} 것이 아닙니다.",
+        "{emotion}? 2000년 전에도 같은 고민을 한 사람이 있습니다.",
+        "매일 {emotion} 당신에게 전하는 말.",
+        "{emotion} 마음, 어떻게 다스릴 수 있을까요."
+      ],
+      "emotions": ["불안한", "지친", "답답한", "외로운", "화가 나는"],
+      "recommended_frequency": "주 2회"
+    },
+    "H4": {
+      "name": "비밀형",
+      "description": "숨겨진 지혜 공개",
+      "templates": [
+        "성공한 CEO들이 매일 아침 하는 2000년 된 습관.",
+        "상위 1%만 아는 {topic}의 비밀.",
+        "아무도 가르쳐주지 않는 {topic} 방법.",
+        "스토아 철학자들의 숨겨진 {topic} 비법.",
+        "대부분이 모르는 {topic}의 진실."
+      ],
+      "topics": ["마음 관리", "분노 조절", "걱정 극복", "평정심 유지"],
+      "recommended_frequency": "주 1회"
+    },
+    "H5": {
+      "name": "대비형",
+      "description": "대조를 통한 흥미 유발",
+      "templates": [
+        "대부분은 {wrong}하지만, 현명한 사람은 {right}합니다.",
+        "실패하는 사람은 {wrong}하고, 성공하는 사람은 {right}합니다.",
+        "어리석은 자는 {wrong}, 지혜로운 자는 {right}.",
+        "보통 사람은 {wrong}하지만, 스토아는 {right}합니다.",
+        "{wrong}하는 것과 {right}하는 것의 차이."
+      ],
+      "pairs": [
+        {"wrong": "걱정", "right": "준비"},
+        {"wrong": "분노", "right": "이해"},
+        {"wrong": "회피", "right": "직면"},
+        {"wrong": "불평", "right": "수용"}
+      ],
+      "recommended_frequency": "주 1회"
+    }
+  },
+  "metadata": {
+    "version": "1.0",
+    "total_types": 5,
+    "last_updated": "2026-01-03"
+  }
+}
