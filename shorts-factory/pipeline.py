@@ -212,7 +212,7 @@ class Pipeline:
         quote_id: int,
         hook_type: str = None,
         cta_type: str = None,
-        skip_tts: bool = False,
+        skip_tts: bool = True,  # 기본값: TTS 스킵 (직접 녹음 사용)
         skip_video: bool = False,
         skip_review: bool = False,
         use_api: bool = True,

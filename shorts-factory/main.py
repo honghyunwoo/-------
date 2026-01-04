@@ -311,9 +311,9 @@ def info():
 @click.option('--hook', '-h', default='H1', help='훅 유형 (H1-H5)')
 @click.option('--cta', '-t', default='C3', help='CTA 유형 (C1-C5)')
 @click.option('--channel', '-c', default='stoic', help='채널 유형')
-@click.option('--skip-tts', is_flag=True, help='TTS 생성 건너뛰기')
+@click.option('--with-tts', is_flag=True, help='TTS 음성 생성 사용 (기본: 직접 녹음)')
 @click.option('--skip-video', is_flag=True, help='영상 합성 건너뛰기')
-def run(quote_id, hook, cta, channel, skip_tts, skip_video):
+def run(quote_id, hook, cta, channel, with_tts, skip_video):
     """
     전체 파이프라인 실행
 
@@ -335,7 +335,7 @@ def run(quote_id, hook, cta, channel, skip_tts, skip_video):
 훅 유형: {hook}
 CTA 유형: {cta}
 채널: {channel}
-TTS 건너뛰기: {'예' if skip_tts else '아니오'}
+TTS 사용: {'예' if with_tts else '아니오 (직접 녹음)'}
 영상 건너뛰기: {'예' if skip_video else '아니오'}
 """,
             title="설정",
@@ -355,7 +355,7 @@ TTS 건너뛰기: {'예' if skip_tts else '아니오'}
             quote_id=quote_id,
             hook_type=hook,
             cta_type=cta,
-            skip_tts=skip_tts,
+            skip_tts=not with_tts,
             skip_video=skip_video
         )
 
@@ -389,9 +389,9 @@ TTS 건너뛰기: {'예' if skip_tts else '아니오'}
 @click.option('--hook', '-h', default='H1', help='훅 유형 (H1-H5)')
 @click.option('--cta', '-t', default='C3', help='CTA 유형 (C1-C5)')
 @click.option('--channel', '-c', default='stoic', help='채널 유형')
-@click.option('--skip-tts', is_flag=True, help='TTS 생성 건너뛰기')
+@click.option('--with-tts', is_flag=True, help='TTS 음성 생성 사용 (기본: 직접 녹음)')
 @click.option('--skip-video', is_flag=True, help='영상 합성 건너뛰기')
-def batch(quote_ids, hook, cta, channel, skip_tts, skip_video):
+def batch(quote_ids, hook, cta, channel, with_tts, skip_video):
     """
     배치 파이프라인 실행
 
@@ -440,7 +440,7 @@ CTA 유형: {cta}
             quote_ids=ids,
             hook_type=hook,
             cta_type=cta,
-            skip_tts=skip_tts,
+            skip_tts=not with_tts,
             skip_video=skip_video
         )
 
