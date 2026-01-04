@@ -1,0 +1,87 @@
+{
+  "project": {
+    "name": "YouTube Shorts Automation",
+    "type": "personal-tool",
+    "purpose": "스토아 철학 동기부여 YouTube 채널 운영",
+    "created": "2025-01-04",
+    "last_update": "2026-01-04T16:00:00Z"
+  },
+  "modules": {
+    "shorts-factory": {
+      "status": "ready",
+      "description": "CLI 기반 쇼츠 제작 파이프라인",
+      "usage": "즉시 사용 가능"
+    },
+    "stoicflow": {
+      "status": "skeleton",
+      "description": "Clean Architecture 기반 미래 확장 베이스",
+      "usage": "YouTube 자동업로드, 스케줄링 추가 시 개발"
+    }
+  },
+  "completed_tasks": [
+    {
+      "date": "2026-01-04",
+      "task": "올빼미 SaaS 코드 제거",
+      "details": "164개 파일, 28,176줄 삭제",
+      "commit": "54ec6e5"
+    },
+    {
+      "date": "2026-01-04",
+      "task": "requirements.txt 정리 및 통합",
+      "details": "패키지명 오류 수정, 중복 제거, 미사용 패키지 제거",
+      "commit": "bc91c3e"
+    },
+    {
+      "date": "2026-01-04",
+      "task": "claudedocs 및 플레이스홀더 문서 삭제",
+      "details": "27개 파일 삭제",
+      "commit": "ae5ad90"
+    },
+    {
+      "date": "2026-01-04",
+      "task": "fix-cli-bugs 브랜치 머지",
+      "details": "StoicFlow CLI 버그 수정, .gitignore 추가",
+      "commit": "f0b5c64"
+    }
+  ],
+  "next_tasks": [
+    {
+      "priority": 1,
+      "task": "shorts-factory로 첫 쇼츠 5개 제작",
+      "reason": "데이터 수집 후 자동화 파이프라인 튜닝"
+    },
+    {
+      "priority": 2,
+      "task": "YouTube 채널 생성 및 업로드",
+      "reason": "실제 성과 데이터 확보"
+    },
+    {
+      "priority": 3,
+      "task": "StoicFlow에 YouTube 자동 업로드 기능 추가",
+      "reason": "수동 업로드 자동화"
+    },
+    {
+      "priority": 4,
+      "task": "스케줄링 시스템 구현",
+      "reason": "매일 자동 업로드"
+    }
+  ],
+  "decisions": [
+    {
+      "date": "2026-01-04",
+      "topic": "프로젝트 방향",
+      "decision": "개인 채널 도구에 집중, SaaS는 보류",
+      "reason": "YAGNI 원칙 - 지금 필요한 것에 집중"
+    },
+    {
+      "date": "2026-01-04",
+      "topic": "Shorts Factory vs StoicFlow",
+      "decision": "Shorts Factory 그대로 사용, StoicFlow는 점진적 개발",
+      "reason": "동작하는 코드는 건드리지 않음"
+    }
+  ],
+  "architecture": {
+    "shorts-factory": "스크립트 기반 (main.py → pipeline.py → core/*)",
+    "stoicflow": "Clean Architecture (domain/application/infrastructure/presentation)"
+  }
+}
