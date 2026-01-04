@@ -1,40 +1,44 @@
+# OS
 .DS_Store
-/config.toml
-/storage/
-/.idea/
-/app/services/__pycache__
-/app/__pycache__/
-/app/config/__pycache__/
-/app/models/__pycache__/
-/app/utils/__pycache__/
-/*/__pycache__/*
-.vscode
-/**/.streamlit
-__pycache__
-logs/
 
-# 환경 변수 파일 (민감 정보 포함)
+# IDE
+/.idea/
+.vscode
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+.Python
+build/
+dist/
+*.egg-info/
+
+# Environment
 .env
 .env.local
 .env.production
 .env.*.local
 
-# 데이터베이스 파일
+# Logs
+logs/
+*.log
+
+# Database
 *.db
 *.sqlite
 *.sqlite3
-owl_studio.db
 
-node_modules
-# VuePress 默认临时文件目录
-/sites/docs/.vuepress/.temp
-# VuePress 默认缓存目录
-/sites/docs/.vuepress/.cache
-# VuePress 默认构建生成的静态文件目录
-/sites/docs/.vuepress/dist
-# 模型目录
+# Output
+/shorts-factory/output/
+/stoicflow/data/output/
+
+# Config (sensitive)
+/shorts-factory/config/.env
+/stoicflow/.env
+
+# Models (large files)
 /models/
-./models/*
-
-venv/
-.venv
