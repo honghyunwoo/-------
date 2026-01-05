@@ -1,0 +1,28 @@
+{
+  "_description": "이미 사용한 B-roll 영상 기록 (중복 방지용)",
+  "_updated_at": "2026-01-05",
+
+  "broll_by_project": {
+    "2026-01-04_quote_3": {
+      "clips": [
+        "waterfall_2421621.mp4",
+        "ocean_waves_4448888.mp4",
+        "epic_nature_35453989.mp4",
+        "sunset_silhouette_35495649.mp4",
+        "peaceful_nature_35432089.mp4"
+      ],
+      "created_at": "2026-01-05"
+    }
+  },
+
+  "clip_usage_count": {
+    "waterfall_2421621.mp4": 1,
+    "ocean_waves_4448888.mp4": 1,
+    "epic_nature_35453989.mp4": 1,
+    "sunset_silhouette_35495649.mp4": 1,
+    "peaceful_nature_35432089.mp4": 1
+  },
+
+  "total_clips_used": 5,
+  "avoid_list": []
+}

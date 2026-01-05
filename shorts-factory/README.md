@@ -104,20 +104,26 @@ python main.py stats
 ## 🛠️ 기술 스택
 
 - **언어**: Python 3.11+
-- **LLM**: Claude API (스크립트 생성, 재검토)
-- **TTS**: TYPECAST (한국어), ElevenLabs (영어)
-- **영상**: MoviePy
-- **자막**: faster-whisper (음성 인식)
-- **CLI**: Click + Rich
+- **LLM**: Google Gemini API (스크립트/메타데이터 생성)
+- **TTS**: Edge TTS (한국어/영어, 무료)
+- **영상**: MoviePy 2.x
+- **B-roll**: Pexels API (무료, 저작권 안전)
+- **자막**: SRT 기반 (타이밍 동기화)
 
 ## 📖 문서
 
+### 기획 문서
 - [PRD (제품 요구사항)](docs/01_PRD.md)
 - [MVP 정의서](docs/02_MVP.md)
 - [5W1H](docs/03_5W1H.md)
 - [기술 설계서](docs/04_TECHNICAL_DESIGN.md)
 - [콘텐츠 가이드라인](docs/05_CONTENT_GUIDELINE.md)
 - [운영 SOP](docs/06_OPERATIONS_SOP.md)
+
+### 기술 문서
+- [API Reference](docs/API_REFERENCE.md) - 핵심 모듈 API 문서
+- [자막 애니메이션 설계](docs/SUBTITLE_ANIMATION_DESIGN.md)
+- [워크플로우 가이드](workflow/README.md)
 
 ## 🎯 훅 유형
 
@@ -149,12 +155,12 @@ python main.py stats
 
 ## 💰 예상 비용
 
-| 항목 | 월 비용 |
-|-----|--------|
-| Claude API | ~$5 |
-| TYPECAST | ~₩20,000 |
-| ElevenLabs | ~$5 |
-| **총합** | **~₩35,000/월** |
+| 항목 | 월 비용 | 비고 |
+|-----|--------|------|
+| Gemini API | 무료 | gemini-2.0-flash |
+| Edge TTS | 무료 | Microsoft Edge 기반 |
+| Pexels API | 무료 | 200 req/hr |
+| **총합** | **₩0/월** | 무료 운영 가능 |
 
 ---
 

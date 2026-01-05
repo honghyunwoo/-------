@@ -4,17 +4,21 @@ YouTube 업로드용 제목, 설명, 태그 생성
 """
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from pathlib import Path
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 try:
-    import anthropic
-    HAS_ANTHROPIC = True
+    import google.generativeai as genai
+    HAS_GENAI = True
 except ImportError:
-    HAS_ANTHROPIC = False
+    genai = None
+    HAS_GENAI = False
 
 
 @dataclass
@@ -127,6 +131,14 @@ class MetadataGenerator:
         self.api_key = api_key
         self.templates = self._load_templates()
 
+        # Google Gemini API 설정
+        if api_key and HAS_GENAI:
+            genai.configure(api_key=api_key)
+            # gemini-3-flash-preview: 더 높은 무료 쿼터 + 안정적
+            self.model = genai.GenerativeModel('gemini-3-flash-preview')
+        else:
+            self.model = None
+
     def _load_templates(self) -> Dict[str, MetadataTemplate]:
         """템플릿 로드"""
         if self.templates_path and Path(self.templates_path).exists():
@@ -157,7 +169,7 @@ class MetadataGenerator:
         """메타데이터 생성"""
         template = self.templates.get(channel, self.templates.get("stoic"))
 
-        if use_ai and self.api_key and HAS_ANTHROPIC:
+        if use_ai and self.model and HAS_GENAI:
             return self._generate_with_ai(script, quote, channel)
 
         # 템플릿 기반 생성
@@ -252,9 +264,7 @@ class MetadataGenerator:
         quote: 'Quote',
         channel: str
     ) -> VideoMetadata:
-        """AI로 메타데이터 생성"""
-        client = anthropic.Anthropic(api_key=self.api_key)
-
+        """AI로 메타데이터 생성 (Google Gemini API)"""
         prompt = f"""다음 YouTube Shorts 스크립트의 메타데이터를 생성해주세요.
 
 스크립트:
@@ -280,13 +290,15 @@ class MetadataGenerator:
 """
 
         try:
-            message = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}]
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=500,
+                    temperature=0.7
+                )
             )
 
-            response_text = message.content[0].text
+            response_text = response.text
 
             # JSON 파싱
             json_match = re.search(r'\{[\s\S]*\}', response_text)
@@ -295,7 +307,7 @@ class MetadataGenerator:
                 return VideoMetadata.from_dict(data)
 
         except Exception as e:
-            print(f"AI 메타데이터 생성 실패: {e}")
+            logger.warning(f"AI 메타데이터 생성 실패: {e}")
 
         # 실패시 템플릿 사용
         return self._generate_from_template(

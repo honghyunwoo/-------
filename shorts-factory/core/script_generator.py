@@ -1,6 +1,6 @@
 """
 스크립트 생성 모듈
-Claude API를 사용하여 명언 기반 쇼츠 스크립트 생성
+Google Gemini API를 사용하여 명언 기반 쇼츠 스크립트 생성
 """
 
 from dataclasses import dataclass, field
@@ -11,9 +11,11 @@ import yaml
 import re
 
 try:
-    import anthropic
+    import google.generativeai as genai
+    HAS_GENAI = True
 except ImportError:
-    anthropic = None
+    genai = None
+    HAS_GENAI = False
 
 from .quote_loader import Quote
 
@@ -91,18 +93,20 @@ class ScriptGenerationError(Exception):
 
 
 class ScriptGenerator:
-    """Claude API를 사용한 스크립트 생성기"""
+    """Google Gemini API를 사용한 스크립트 생성기"""
 
     def __init__(self, api_key: str, prompts_path: str | Path):
         """
         Args:
-            api_key: Anthropic API 키
+            api_key: Google API 키
             prompts_path: prompts.yaml 파일 경로
         """
-        if anthropic is None:
-            raise ImportError("anthropic 패키지가 설치되지 않았습니다. pip install anthropic")
+        if not HAS_GENAI:
+            raise ImportError("google-generativeai 패키지가 설치되지 않았습니다. pip install google-generativeai")
 
-        self.client = anthropic.Anthropic(api_key=api_key)
+        genai.configure(api_key=api_key)
+        # gemini-3-flash-preview: 더 높은 무료 쿼터 + 안정적
+        self.model = genai.GenerativeModel('gemini-3-flash-preview')
         self.prompts_path = Path(prompts_path)
         self.prompts = self._load_prompts()
 
@@ -119,9 +123,9 @@ class ScriptGenerator:
         quote: Quote,
         hook_type: HookType = "H1",
         cta_type: CTAType = "C3",
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "gemini-2.0-flash-exp",
         temperature: float = 0.7,
-        max_tokens: int = 1000
+        max_tokens: int = 2000  # 충분한 토큰 확보
     ) -> Script:
         """
         스크립트 생성
@@ -130,7 +134,7 @@ class ScriptGenerator:
             quote: Quote 객체
             hook_type: 훅 유형 (H1-H5)
             cta_type: CTA 유형 (C1-C5)
-            model: Claude 모델명
+            model: Gemini 모델명 (미사용, 호환성 유지)
             temperature: 생성 온도
             max_tokens: 최대 토큰 수
 
@@ -153,18 +157,25 @@ class ScriptGenerator:
         )
 
         try:
-            # Claude API 호출
-            message = self.client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system_prompt,
-                messages=[
-                    {"role": "user", "content": user_prompt}
-                ]
+            # Google Gemini API 호출
+            full_prompt = f"{system_prompt}\n\n{user_prompt}"
+            response = self.model.generate_content(
+                full_prompt,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=max_tokens,
+                    temperature=temperature
+                )
             )
 
-            response_text = message.content[0].text
+            response_text = response.text
+
+            # 디버깅: 원본 응답 저장
+            debug_path = Path(__file__).parent.parent / 'output' / 'last_gemini_response.txt'
+            debug_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(debug_path, 'w', encoding='utf-8') as f:
+                f.write(f"=== Quote: {quote.text[:50]}... ===\n\n")
+                f.write(response_text)
+
             return self._parse_response(response_text, quote, hook_type, cta_type)
 
         except Exception as e:
@@ -198,23 +209,75 @@ class ScriptGenerator:
             'cta': ''
         }
 
-        # 정규식으로 섹션 추출
-        hook_match = re.search(r'\[훅\]\s*\n(.+?)(?=\n\[명언\]|\n\[해설\]|$)', response, re.DOTALL)
-        quote_match = re.search(r'\[명언\]\s*\n(.+?)(?=\n\[해설\]|\n\[예시\]|$)', response, re.DOTALL)
-        explanation_match = re.search(r'\[해설\]\s*\n(.+?)(?=\n\[예시\]|\n\[CTA\]|$)', response, re.DOTALL)
-        example_match = re.search(r'\[예시\]\s*\n(.+?)(?=\n\[CTA\]|$)', response, re.DOTALL)
-        cta_match = re.search(r'\[CTA\]\s*\n(.+?)$', response, re.DOTALL)
+        # === 전처리: 다양한 형식 정규화 ===
+        # 1. 마크다운 볼드 제거: **[훅]** → [훅]
+        response = re.sub(r'\*+\s*\[', '[', response)
+        response = re.sub(r'\]\s*\*+', ']', response)
 
-        if hook_match:
-            sections['hook'] = hook_match.group(1).strip()
-        if quote_match:
-            sections['quote'] = quote_match.group(1).strip()
-        if explanation_match:
-            sections['explanation'] = explanation_match.group(1).strip()
-        if example_match:
-            sections['example'] = example_match.group(1).strip()
-        if cta_match:
-            sections['cta'] = cta_match.group(1).strip()
+        # 2. 불완전한 섹션 마커 수정: [해설 → [해설], [훅 → [훅] 등
+        response = re.sub(r'\[(훅|명언|해설|예시|CTA)(?!\])', r'[\1]', response)
+
+        # 3. 중복 섹션 마커 제거 (첫 번째만 유지)
+        for marker in ['훅', '명언', '해설', '예시', 'CTA']:
+            pattern = rf'(\[{marker}\]).*?(\[{marker}\])'
+            response = re.sub(pattern, r'\1', response, flags=re.DOTALL)
+
+        # 4. 연속 섹션 마커 사이의 빈 내용 제거하지 않음 (그대로 유지)
+
+        # 5. 괄호 안 설명 제거: (패턴 인터럽트 + 호기심 자극) 등
+        response = re.sub(r'\n\s*\([^)]+\)\s*\n', '\n', response)
+
+        # === 섹션 추출 ===
+        # 순서대로 섹션 경계 찾기
+        markers = [
+            (r'\[훅\]', 'hook'),
+            (r'\[명언\]', 'quote'),
+            (r'\[해설\]', 'explanation'),
+            (r'\[예시\]', 'example'),
+            (r'\[CTA\]', 'cta')
+        ]
+
+        # 각 섹션의 시작 위치 찾기
+        positions = []
+        for pattern, name in markers:
+            match = re.search(pattern, response)
+            if match:
+                positions.append((match.start(), match.end(), name))
+
+        # 위치순으로 정렬
+        positions.sort(key=lambda x: x[0])
+
+        # 각 섹션 내용 추출
+        for i, (start, end, name) in enumerate(positions):
+            # 다음 섹션 시작 위치 또는 문서 끝
+            next_start = positions[i + 1][0] if i + 1 < len(positions) else len(response)
+            content = response[end:next_start].strip()
+            # 앞뒤 공백과 불필요한 마커 제거
+            content = re.sub(r'^\s*[\n\r]+', '', content)
+            content = re.sub(r'[\n\r]+\s*$', '', content)
+            sections[name] = content
+
+        # 하위호환: 기존 정규식도 백업으로 시도
+        if not sections['hook']:
+            hook_match = re.search(r'\[훅\][\s\n]*(.+?)(?=\[명언\]|\[해설\]|$)', response, re.DOTALL)
+            if hook_match:
+                sections['hook'] = hook_match.group(1).strip()
+        if not sections['quote']:
+            quote_match = re.search(r'\[명언\][\s\n]*(.+?)(?=\[해설\]|\[예시\]|$)', response, re.DOTALL)
+            if quote_match:
+                sections['quote'] = quote_match.group(1).strip()
+        if not sections['explanation']:
+            explanation_match = re.search(r'\[해설\][\s\n]*(.+?)(?=\[예시\]|\[CTA\]|$)', response, re.DOTALL)
+            if explanation_match:
+                sections['explanation'] = explanation_match.group(1).strip()
+        if not sections['example']:
+            example_match = re.search(r'\[예시\][\s\n]*(.+?)(?=\[CTA\]|$)', response, re.DOTALL)
+            if example_match:
+                sections['example'] = example_match.group(1).strip()
+        if not sections['cta']:
+            cta_match = re.search(r'\[CTA\][\s\n]*(.+?)$', response, re.DOTALL)
+            if cta_match:
+                sections['cta'] = cta_match.group(1).strip()
 
         # 전체 텍스트 조합
         full_text = f"""[훅]

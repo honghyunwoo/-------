@@ -5,15 +5,15 @@ channels:
   stoic:
     name: "매일 스토아"
     language: "ko"
-    tts_provider: "typecast"
-    tts_voice_id: "your-voice-id"
+    tts_provider: "edge"  # 무료 Edge TTS 사용
+    tts_voice_id: "ko-KR-InJoonNeural"  # 남성, 차분하고 신뢰감
     themes: ["philosophy", "motivation", "self-improvement"]
 
   english:
     name: "English Shorts"
     language: "en"
-    tts_provider: "elevenlabs"
-    tts_voice_id: "your-voice-id"
+    tts_provider: "edge"  # 무료 Edge TTS 사용
+    tts_voice_id: "en-US-GuyNeural"  # 남성
     themes: ["english", "learning", "expressions"]
 
 # 영상 설정
@@ -31,8 +31,13 @@ subtitle:
   fontsize: 48
   color: "white"
   highlight_color: "#D4AF37"
+  stroke_color: "black"
+  stroke_width: 2
   position: "bottom"
+  bottom_margin: 320  # 화면 하단에서 자막까지의 여백 (1920 - 320 = 1600px)
+  text_margin: 20     # 텍스트 상하 패딩 (stroke 짤림 방지)
   max_chars_per_line: 15
+  wrap_width: 22      # 줄바꿈 문자 수
 
 # BGM 설정
 bgm:
@@ -55,10 +60,10 @@ pipeline:
   default_hook_type: "H1"
   default_cta_type: "C3"
 
-# Claude API 설정
-claude:
-  model: "claude-sonnet-4-20250514"
-  max_tokens: 1000
+# Google Gemini API 설정
+gemini:
+  model: "gemini-3-flash-preview"
+  max_tokens: 2000
   temperature: 0.7
 
 # 로깅 설정

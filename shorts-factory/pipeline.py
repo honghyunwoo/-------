@@ -41,14 +41,14 @@ class PipelineConfig:
     config_dir: Path = field(default_factory=lambda: Path("./config"))
 
     # API 키
-    anthropic_api_key: str = ""
+    google_api_key: str = ""  # Google Gemini API (무료)
     typecast_api_key: str = ""
     elevenlabs_api_key: str = ""
 
     # 채널 설정
     channel: str = "stoic"
     language: str = "ko"
-    tts_provider: TTSProvider = TTSProvider.TYPECAST
+    tts_provider: TTSProvider = TTSProvider.EDGE  # 무료 Edge TTS 사용
     tts_voice_id: str = ""
 
     # 파이프라인 설정
@@ -99,7 +99,7 @@ class PipelineConfig:
         if config.channel in channels:
             ch = channels[config.channel]
             config.language = ch.get('language', 'ko')
-            tts_provider = ch.get('tts_provider', 'typecast')
+            tts_provider = ch.get('tts_provider', 'edge')
             config.tts_provider = TTSProvider(tts_provider)
             config.tts_voice_id = ch.get('tts_voice_id', '')
 
@@ -108,7 +108,7 @@ class PipelineConfig:
     def load_env(self):
         """환경 변수에서 API 키 로드"""
         load_dotenv(self.config_dir / '.env')
-        self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY', '')
+        self.google_api_key = os.getenv('GOOGLE_API_KEY', '')
         self.typecast_api_key = os.getenv('TYPECAST_API_KEY', '')
         self.elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY', '')
 
@@ -162,28 +162,31 @@ class Pipeline:
         prompts_path = self.config.templates_dir / self.config.channel / "prompts.yaml"
 
         self.script_generator = ScriptGenerator(
-            api_key=self.config.anthropic_api_key,
+            api_key=self.config.google_api_key,
             prompts_path=str(prompts_path)
         )
 
         # 재검토 루프
         self.review_loop = ReviewLoop(
-            api_key=self.config.anthropic_api_key,
+            api_key=self.config.google_api_key,
             prompts_path=str(prompts_path),
             min_score=self.config.review_min_score,
             max_iterations=self.config.review_max_iterations
         )
 
         # TTS 엔진
-        tts_api_key = (
-            self.config.typecast_api_key
-            if self.config.tts_provider == TTSProvider.TYPECAST
-            else self.config.elevenlabs_api_key
-        )
+        if self.config.tts_provider == TTSProvider.TYPECAST:
+            tts_api_key = self.config.typecast_api_key
+        elif self.config.tts_provider == TTSProvider.ELEVENLABS:
+            tts_api_key = self.config.elevenlabs_api_key
+        else:
+            tts_api_key = None  # Edge TTS는 API 키 불필요
+
         self.tts_engine = TTSEngine(
             provider=self.config.tts_provider,
             api_key=tts_api_key,
-            voice_id=self.config.tts_voice_id
+            voice_id=self.config.tts_voice_id,
+            lang=self.config.language
         )
 
         # 자막 생성기
@@ -204,7 +207,7 @@ class Pipeline:
 
         # 메타데이터 생성기
         self.metadata_gen = MetadataGenerator(
-            api_key=self.config.anthropic_api_key
+            api_key=self.config.google_api_key
         )
 
     def run(
@@ -224,7 +227,7 @@ class Pipeline:
         cta_type = cta_type or self.config.default_cta_type
 
         # API 키가 없으면 자동으로 API 사용 안함
-        if not self.config.anthropic_api_key:
+        if not self.config.google_api_key:
             use_api = False
             skip_review = True
 
@@ -262,28 +265,29 @@ class Pipeline:
             # 개선된 스크립트 저장
             self._save_script(script, script_path)
 
-            # TTS 텍스트 저장
+            # TTS 텍스트 저장 (섹션 마커 제거)
             tts_text_path = output_dir / "tts_text.txt"
+            tts_text = script.get_tts_text()
             with open(tts_text_path, 'w', encoding='utf-8') as f:
-                f.write(script.full_text)
+                f.write(tts_text)
 
             audio_path = None
             srt_path = None
             video_path = None
 
             if not skip_tts:
-                # 4. TTS 생성
+                # 4. TTS 생성 (섹션 마커 없는 텍스트 사용)
                 logger.info(f"[4/8] TTS 음성 생성 중...")
                 audio_path = output_dir / "audio.mp3"
-                self.tts_engine.generate(script.full_text, audio_path)
+                self.tts_engine.generate(tts_text, audio_path)
                 audio_duration = get_audio_duration(audio_path)
                 logger.info(f"  → 음성 생성 완료 ({audio_duration:.1f}초)")
 
-                # 5. 자막 생성
+                # 5. 자막 생성 (섹션 마커 없는 텍스트 사용)
                 logger.info(f"[5/8] 자막 생성 중...")
                 srt_path = output_dir / "captions.srt"
                 self.subtitle_gen.generate_from_script(
-                    script.full_text,
+                    tts_text,
                     audio_duration,
                     srt_path
                 )
@@ -432,7 +436,23 @@ def create_pipeline(config_path: str = None) -> Pipeline:
 
 
 if __name__ == "__main__":
-    # 테스트 실행
+    import argparse
+    parser = argparse.ArgumentParser(description='Shorts Factory Pipeline')
+    parser.add_argument('--quote-id', type=int, default=1, help='Quote ID to use')
+    parser.add_argument('--hook', type=str, default='H1', help='Hook type (H1-H5)')
+    parser.add_argument('--cta', type=str, default='C3', help='CTA type (C1-C5)')
+    parser.add_argument('--skip-tts', action='store_true', help='Skip TTS generation')
+    parser.add_argument('--skip-video', action='store_true', help='Skip video generation')
+    parser.add_argument('--skip-review', action='store_true', help='Skip review loop')
+    args = parser.parse_args()
+
     pipeline = create_pipeline()
-    result = pipeline.run(quote_id=1, skip_tts=True, skip_video=True)
+    result = pipeline.run(
+        quote_id=args.quote_id,
+        hook_type=args.hook,
+        cta_type=args.cta,
+        skip_tts=args.skip_tts,
+        skip_video=args.skip_video,
+        skip_review=args.skip_review
+    )
     print(result.to_dict())

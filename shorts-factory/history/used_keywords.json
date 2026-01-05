@@ -1,0 +1,25 @@
+{
+  "_description": "이미 사용한 키워드 기록 (중복 방지용)",
+  "_updated_at": "2026-01-05",
+
+  "keywords_by_project": {
+    "2026-01-04_quote_3": {
+      "keywords": ["storm", "fate", "destiny", "embrace", "challenge", "design", "victim", "architect"],
+      "created_at": "2026-01-04"
+    }
+  },
+
+  "keyword_usage_count": {
+    "storm": 1,
+    "fate": 1,
+    "destiny": 1,
+    "embrace": 1,
+    "challenge": 1,
+    "design": 1,
+    "victim": 1,
+    "architect": 1
+  },
+
+  "frequently_used": [],
+  "avoid_list": []
+}

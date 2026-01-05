@@ -17,6 +17,7 @@ class TTSProvider(Enum):
     """TTS 제공자"""
     TYPECAST = "typecast"
     ELEVENLABS = "elevenlabs"
+    EDGE = "edge"  # 무료 Edge TTS
 
 
 @dataclass
@@ -207,6 +208,60 @@ class ElevenLabsEngine(BaseTTSEngine):
             return [{"id": v, "name": k} for k, v in self.DEFAULT_VOICES.items()]
 
 
+class EdgeTTSEngine(BaseTTSEngine):
+    """Edge TTS 엔진 (무료, 한국어/영어 모두 지원)"""
+
+    # 한국어 음성 목록
+    KOREAN_VOICES = {
+        "sunhi": "ko-KR-SunHiNeural",  # 여성, 밝고 친근
+        "injoon": "ko-KR-InJoonNeural",  # 남성, 차분하고 신뢰감
+        "hyunsu": "ko-KR-HyunsuNeural",  # 남성, 따뜻한 목소리
+        "bongJin": "ko-KR-BongJinNeural",  # 남성
+        "gookMin": "ko-KR-GookMinNeural",  # 남성
+        "jiMin": "ko-KR-JiMinNeural",  # 여성
+        "seoHyeon": "ko-KR-SeoHyeonNeural",  # 여성
+        "soonBok": "ko-KR-SoonBokNeural",  # 여성
+        "yuJin": "ko-KR-YuJinNeural",  # 여성
+    }
+
+    # 영어 음성 목록
+    ENGLISH_VOICES = {
+        "guy": "en-US-GuyNeural",  # 남성
+        "jenny": "en-US-JennyNeural",  # 여성
+        "aria": "en-US-AriaNeural",  # 여성
+        "davis": "en-US-DavisNeural",  # 남성
+    }
+
+    def __init__(self, voice_id: str = None, lang: str = "ko"):
+        self.lang = lang
+        if lang == "ko":
+            self.voice_id = voice_id or self.KOREAN_VOICES.get("injoon")
+        else:
+            self.voice_id = voice_id or self.ENGLISH_VOICES.get("guy")
+
+    def generate(self, text: str, output_path: Path) -> Path:
+        """Edge TTS로 음성 생성"""
+        import asyncio
+        import edge_tts
+
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        async def _generate():
+            communicate = edge_tts.Communicate(text, self.voice_id)
+            await communicate.save(str(output_path))
+
+        asyncio.run(_generate())
+        return output_path
+
+    def get_voices(self) -> list:
+        """사용 가능한 음성 목록"""
+        if self.lang == "ko":
+            return [{"id": v, "name": k} for k, v in self.KOREAN_VOICES.items()]
+        else:
+            return [{"id": v, "name": k} for k, v in self.ENGLISH_VOICES.items()]
+
+
 class TTSError(Exception):
     """TTS 관련 예외"""
     pass
@@ -218,8 +273,9 @@ class TTSEngine:
     def __init__(
         self,
         provider: TTSProvider,
-        api_key: str,
-        voice_id: str = None
+        api_key: str = None,
+        voice_id: str = None,
+        lang: str = "ko"
     ):
         self.provider = provider
 
@@ -227,6 +283,8 @@ class TTSEngine:
             self.engine = TypecastEngine(api_key, voice_id)
         elif provider == TTSProvider.ELEVENLABS:
             self.engine = ElevenLabsEngine(api_key, voice_id)
+        elif provider == TTSProvider.EDGE:
+            self.engine = EdgeTTSEngine(voice_id, lang)
         else:
             raise ValueError(f"지원하지 않는 TTS 제공자: {provider}")
 
@@ -251,8 +309,15 @@ class TTSEngine:
 def get_audio_duration(audio_path: Path) -> float:
     """오디오 파일 길이 반환 (초)"""
     try:
-        from pydub import AudioSegment
-        audio = AudioSegment.from_file(str(audio_path))
-        return len(audio) / 1000.0  # 밀리초 -> 초
-    except Exception as e:
-        raise TTSError(f"오디오 길이 측정 실패: {e}")
+        # MoviePy 사용 (Python 3.13 호환)
+        from moviepy import AudioFileClip
+        with AudioFileClip(str(audio_path)) as audio:
+            return audio.duration
+    except Exception:
+        try:
+            # mutagen 백업
+            from mutagen.mp3 import MP3
+            audio = MP3(str(audio_path))
+            return audio.info.length
+        except Exception as e:
+            raise TTSError(f"오디오 길이 측정 실패: {e}")

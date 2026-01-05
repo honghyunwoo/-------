@@ -1,0 +1,42 @@
+{
+  "project_id": null,
+  "status": "template",
+  "created_at": null,
+  "theme": "stoic",
+
+  "script": {
+    "hook": "",
+    "quote": "",
+    "quote_author": "",
+    "quote_source": "",
+    "explanation": "",
+    "application": "",
+    "cta": ""
+  },
+
+  "tts_text": "",
+
+  "keywords": [],
+
+  "style": {
+    "color_tone": "dark_moody",
+    "subtitle_highlight": true,
+    "subtitle_color": "white",
+    "highlight_color": "gold",
+    "bgm_style": "ambient",
+    "bgm_volume": 0.15
+  },
+
+  "output": {
+    "audio_path": null,
+    "srt_path": null,
+    "video_path": null
+  },
+
+  "_instructions": {
+    "1_script": "스크립트 각 섹션을 채워주세요",
+    "2_tts_text": "TTS로 읽을 전체 텍스트 (섹션 마커 제외)",
+    "3_keywords": "Claude에게 키워드 추출 요청 후 채우기",
+    "4_generate": "python generate_from_project.py 실행"
+  }
+}

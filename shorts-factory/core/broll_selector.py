@@ -4,10 +4,13 @@ B-roll 선택 모듈
 """
 
 import json
+import logging
 import random
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -50,6 +53,9 @@ class BrollConfig:
 
 class BrollSelector:
     """B-roll 선택기"""
+
+    # 비디오 길이 캐시 (파일 경로 → 길이)
+    _duration_cache: Dict[str, float] = {}
 
     # 테마별 키워드 매핑
     THEME_KEYWORDS = {
@@ -129,12 +135,21 @@ class BrollSelector:
         return list(set(themes)) or ["general"]
 
     def _get_video_duration(self, path: Path) -> float:
-        """비디오 길이 반환"""
+        """비디오 길이 반환 (캐시 사용)"""
+        path_str = str(path)
+
+        # 캐시 확인
+        if path_str in self._duration_cache:
+            return self._duration_cache[path_str]
+
         try:
-            from moviepy.editor import VideoFileClip
+            from moviepy import VideoFileClip
             with VideoFileClip(str(path)) as clip:
-                return clip.duration
-        except Exception:
+                duration = clip.duration
+                self._duration_cache[path_str] = duration
+                return duration
+        except Exception as e:
+            logger.warning(f"비디오 길이 측정 실패 ({path.name}): {e}, 기본값 사용")
             return self.config.default_duration
 
     def select(

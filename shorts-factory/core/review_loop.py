@@ -1,6 +1,7 @@
 """
 재검토 루프 모듈
 생성된 스크립트를 평가하고 개선
+Google Gemini API 사용
 """
 
 from dataclasses import dataclass
@@ -10,9 +11,11 @@ import re
 import yaml
 
 try:
-    import anthropic
+    import google.generativeai as genai
+    HAS_GENAI = True
 except ImportError:
-    anthropic = None
+    genai = None
+    HAS_GENAI = False
 
 from .script_generator import Script
 
@@ -49,7 +52,7 @@ class ReviewResult:
 
 
 class ReviewLoop:
-    """스크립트 재검토 및 개선 루프"""
+    """스크립트 재검토 및 개선 루프 (Google Gemini API)"""
 
     MIN_SCORE = 8.0
     MAX_ITERATIONS = 3
@@ -63,15 +66,17 @@ class ReviewLoop:
     ):
         """
         Args:
-            api_key: Anthropic API 키
+            api_key: Google API 키
             prompts_path: prompts.yaml 파일 경로
             min_score: 통과 최소 점수
             max_iterations: 최대 반복 횟수
         """
-        if anthropic is None:
-            raise ImportError("anthropic 패키지가 설치되지 않았습니다. pip install anthropic")
+        if not HAS_GENAI:
+            raise ImportError("google-generativeai 패키지가 설치되지 않았습니다. pip install google-generativeai")
 
-        self.client = anthropic.Anthropic(api_key=api_key)
+        genai.configure(api_key=api_key)
+        # gemini-3-flash-preview: 더 높은 무료 쿼터 + 안정적
+        self.model = genai.GenerativeModel('gemini-3-flash-preview')
         self.prompts_path = Path(prompts_path)
         self.prompts = self._load_prompts()
         self.MIN_SCORE = min_score
@@ -88,7 +93,7 @@ class ReviewLoop:
     def review_and_improve(
         self,
         script: Script,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "gemini-2.0-flash-exp",
         temperature: float = 0.3
     ) -> Script:
         """
@@ -130,7 +135,7 @@ class ReviewLoop:
 
         Args:
             script: 평가할 Script 객체
-            model: Claude 모델명
+            model: Gemini 모델명 (미사용, 호환성 유지)
             temperature: 생성 온도
 
         Returns:
@@ -140,19 +145,18 @@ class ReviewLoop:
         user_template = self.prompts['review_loop']['user_template']
 
         user_prompt = user_template.format(script=script.full_text)
+        full_prompt = f"{system_prompt}\n\n{user_prompt}"
 
         try:
-            message = self.client.messages.create(
-                model=model,
-                max_tokens=1500,
-                temperature=temperature,
-                system=system_prompt,
-                messages=[
-                    {"role": "user", "content": user_prompt}
-                ]
+            response = self.model.generate_content(
+                full_prompt,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=1500,
+                    temperature=temperature
+                )
             )
 
-            response_text = message.content[0].text
+            response_text = response.text
             return self._parse_evaluation(response_text)
 
         except Exception as e:
@@ -258,7 +262,7 @@ class ReviewLoop:
         Args:
             script: 개선할 Script 객체
             feedback: 개선 피드백
-            model: Claude 모델명
+            model: Gemini 모델명 (미사용, 호환성 유지)
             temperature: 생성 온도
 
         Returns:
@@ -278,16 +282,15 @@ class ReviewLoop:
 """
 
         try:
-            message = self.client.messages.create(
-                model=model,
-                max_tokens=1000,
-                temperature=temperature,
-                messages=[
-                    {"role": "user", "content": improvement_prompt}
-                ]
+            response = self.model.generate_content(
+                improvement_prompt,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=1000,
+                    temperature=temperature
+                )
             )
 
-            response_text = message.content[0].text
+            response_text = response.text
 
             # 개선된 스크립트 파싱
             return self._parse_improved_script(response_text, script)
@@ -358,7 +361,7 @@ class ReviewLoop:
     def evaluate_only(
         self,
         script: Script,
-        model: str = "claude-sonnet-4-20250514"
+        model: str = "gemini-2.5-flash"
     ) -> ReviewResult:
         """
         스크립트 평가만 수행 (개선 없이)

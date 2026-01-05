@@ -22,7 +22,13 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskPr
 from core.quote_loader import QuoteLoader, QuoteNotFoundError
 from core.script_generator import ScriptGenerator, Script
 
-console = Console()
+# Windows 인코딩 문제 해결
+import sys
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
+console = Console(force_terminal=True)
 
 # 기본 경로 설정
 BASE_DIR = Path(__file__).parent
@@ -170,9 +176,9 @@ def generate(quote_id, hook, cta, channel, use_api):
         ) as progress:
 
             if use_api:
-                api_key = os.getenv('ANTHROPIC_API_KEY')
+                api_key = os.getenv('GOOGLE_API_KEY')
                 if not api_key:
-                    console.print("[red]오류: ANTHROPIC_API_KEY가 설정되지 않았습니다.[/red]")
+                    console.print("[red]오류: GOOGLE_API_KEY가 설정되지 않았습니다.[/red]")
                     console.print("[dim]config/.env 파일에 API 키를 설정하세요.[/dim]")
                     use_api = False
 
@@ -183,7 +189,6 @@ def generate(quote_id, hook, cta, channel, use_api):
             else:
                 task = progress.add_task("템플릿 기반 스크립트 생성 중...", total=None)
                 # API 없이 간단 생성
-                from core.script_generator import ScriptGenerator
                 generator = ScriptGenerator.__new__(ScriptGenerator)
                 script = generator.generate_simple(quote, hook, cta)
 
@@ -283,7 +288,7 @@ def info():
   • 에셋: {ASSETS_DIR}
 
 [bold]API 키 상태:[/bold]
-  • ANTHROPIC_API_KEY: {'✅ 설정됨' if os.getenv('ANTHROPIC_API_KEY') else '❌ 미설정'}
+  • GOOGLE_API_KEY: {'✅ 설정됨' if os.getenv('GOOGLE_API_KEY') else '❌ 미설정'}
   • TYPECAST_API_KEY: {'✅ 설정됨' if os.getenv('TYPECAST_API_KEY') else '❌ 미설정'}
   • ELEVENLABS_API_KEY: {'✅ 설정됨' if os.getenv('ELEVENLABS_API_KEY') else '❌ 미설정'}
 
