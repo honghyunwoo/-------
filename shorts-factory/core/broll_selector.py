@@ -71,7 +71,7 @@ class BrollSelector:
         "추상": ["abstract", "particles", "geometric", "motion"]
     }
 
-    def __init__(self, config: BrollConfig = None, assets_path: Path = None):
+    def __init__(self, config: BrollConfig = None, assets_path: Path = None, fast_scan: bool = True):
         if config:
             self.config = config
         else:
@@ -79,6 +79,7 @@ class BrollSelector:
                 assets_path=assets_path or Path("./assets/b-roll")
             )
         self.clips: List[BrollClip] = []
+        self.fast_scan = fast_scan  # True면 duration 체크 건너뛰기
         self._load_index()
 
     def _load_index(self):
@@ -97,7 +98,7 @@ class BrollSelector:
             self.clips = self._scan_folder()
 
     def _scan_folder(self) -> List[BrollClip]:
-        """B-roll 폴더 스캔"""
+        """B-roll 폴더 스캔 (fast_scan=True면 duration 체크 건너뜀)"""
         clips = []
 
         if not self.config.assets_path.exists():
@@ -108,9 +109,15 @@ class BrollSelector:
                 # 폴더 이름에서 테마 추출
                 themes = self._extract_themes_from_path(video_file)
 
+                # fast_scan이면 기본 duration 사용 (빠름)
+                if self.fast_scan:
+                    duration = self.config.default_duration
+                else:
+                    duration = self._get_video_duration(video_file)
+
                 clip = BrollClip(
                     path=video_file,
-                    duration=self._get_video_duration(video_file),
+                    duration=duration,
                     themes=themes,
                     source="local"
                 )
