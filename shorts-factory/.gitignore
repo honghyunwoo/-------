@@ -30,3 +30,14 @@ output/*
 # OS
 .DS_Store
 Thumbs.db
+
+# B-roll videos (large files, re-download from Pexels)
+assets/b-roll/**/*.mp4
+assets/b-roll/**/*.mov
+assets/b-roll/**/*.webm
+assets/b-roll/broll_index.json
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
