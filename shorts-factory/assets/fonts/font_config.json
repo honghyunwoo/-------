@@ -1,0 +1,11 @@
+{
+  "system_fonts": {
+    "malgun": "C:\\Windows\\Fonts\\malgun.ttf",
+    "malgunbd": "C:\\Windows\\Fonts\\malgunbd.ttf"
+  },
+  "project_fonts": {},
+  "recommended": {
+    "subtitle": "C:\\Windows\\Fonts\\malgunbd.ttf",
+    "text": "C:\\Windows\\Fonts\\malgun.ttf"
+  }
+}

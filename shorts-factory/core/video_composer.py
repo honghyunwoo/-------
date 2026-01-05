@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 from pathlib import Path
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 # 최적 스레드 수 계산 (CPU 코어 - 1, 최소 2)
@@ -32,6 +34,122 @@ from .broll_selector import BrollClip
 from .subtitle_generator import SubtitleEntry, SubtitleGenerator
 
 
+# =============================================================================
+# 시네마틱 효과 (AI Slop 회피)
+# =============================================================================
+
+def add_vignette(clip, intensity: float = 0.3):
+    """
+    비네팅 효과 - 화면 가장자리 어둡게
+    스토아 철학의 무겁고 진지한 분위기에 최적
+
+    Args:
+        clip: VideoFileClip
+        intensity: 0.0 (없음) ~ 1.0 (강함), 기본 0.3
+    """
+    def vignette_frame(frame):
+        h, w = frame.shape[:2]
+        Y, X = np.ogrid[:h, :w]
+        center_y, center_x = h / 2, w / 2
+
+        # 중앙에서의 거리 계산
+        dist = np.sqrt((X - center_x)**2 + (Y - center_y)**2)
+        max_dist = np.sqrt(center_x**2 + center_y**2)
+        dist_normalized = dist / max_dist
+
+        # 비네팅 마스크 (중앙=1, 가장자리=1-intensity)
+        mask = 1 - (dist_normalized * intensity)
+        mask = np.clip(mask, 0, 1)
+
+        # RGB 각 채널에 적용
+        result = frame.astype(np.float32)
+        for i in range(3):
+            result[:, :, i] = result[:, :, i] * mask
+
+        return result.astype(np.uint8)
+
+    return clip.image_transform(vignette_frame)
+
+
+def add_film_grain(clip, intensity: float = 0.03):
+    """
+    필름 그레인 효과 - 미세 노이즈로 디지털 매끄러움 제거
+    AI 양산형 느낌을 지워주는 핵심 효과
+
+    Args:
+        clip: VideoFileClip
+        intensity: 0.01 (미세) ~ 0.08 (강함), 기본 0.03
+    """
+    def grain_frame(frame):
+        # Gaussian noise 추가
+        noise = np.random.normal(0, intensity * 255, frame.shape)
+        result = frame.astype(np.float32) + noise
+        return np.clip(result, 0, 255).astype(np.uint8)
+
+    return clip.image_transform(grain_frame)
+
+
+def apply_color_grade(clip, preset: str = 'stoic_navy_gold'):
+    """
+    색 보정 프리셋 적용
+
+    Args:
+        clip: VideoFileClip
+        preset: 'stoic_navy_gold', 'warm_sepia', 'cold_dramatic'
+    """
+    from moviepy.video import fx as vfx
+
+    presets = {
+        'stoic_navy_gold': {
+            'saturation': 0.85,    # 채도 약간 낮춤
+            'contrast': 1.12,      # 대비 높임
+            'blue_tint': 0.05,     # 블루 틴트
+        },
+        'warm_sepia': {
+            'saturation': 0.9,
+            'contrast': 1.08,
+            'red_tint': 0.08,
+        },
+        'cold_dramatic': {
+            'saturation': 0.75,
+            'contrast': 1.25,
+            'blue_tint': 0.1,
+        },
+        'neutral_clean': {
+            'saturation': 1.0,
+            'contrast': 1.0,
+        }
+    }
+
+    settings = presets.get(preset, presets['stoic_navy_gold'])
+
+    def color_grade_frame(frame):
+        result = frame.astype(np.float32)
+
+        # 채도 조절 (HSV 변환 대신 간단한 방식)
+        gray = np.mean(result, axis=2, keepdims=True)
+        sat = settings.get('saturation', 1.0)
+        result = gray + sat * (result - gray)
+
+        # 대비 조절
+        contrast = settings.get('contrast', 1.0)
+        result = 128 + contrast * (result - 128)
+
+        # 틴트 적용
+        if 'blue_tint' in settings:
+            result[:, :, 2] = result[:, :, 2] + settings['blue_tint'] * 50
+        if 'red_tint' in settings:
+            result[:, :, 0] = result[:, :, 0] + settings['red_tint'] * 50
+
+        return np.clip(result, 0, 255).astype(np.uint8)
+
+    return clip.image_transform(color_grade_frame)
+
+
+# =============================================================================
+# 영상 합성 설정
+# =============================================================================
+
 @dataclass
 class CompositionConfig:
     """영상 합성 설정"""
@@ -47,20 +165,28 @@ class CompositionConfig:
     bgm_fade_in: float = 1.0
     bgm_fade_out: float = 2.0
 
-    # 자막 (한글 지원 폰트 - Windows: Malgun Gothic, Linux: WenQuanYi)
-    subtitle_font: str = "C:/Windows/Fonts/malgun.ttf"  # Windows Korean font
-    subtitle_fontsize: int = 48
-    subtitle_color: str = "white"
+    # 시네마틱 효과 (AI Slop 회피)
+    enable_vignette: bool = True
+    vignette_intensity: float = 0.25  # 0.0~1.0, 기본 약간 어둡게
+    enable_film_grain: bool = True
+    film_grain_intensity: float = 0.025  # 미세 노이즈
+    color_grade_preset: str = "stoic_navy_gold"  # 프리셋 이름
+
+    # 자막 (Stoic 스타일 - 금색)
+    subtitle_font: str = "C:/Windows/Fonts/malgunbd.ttf"  # Bold 폰트
+    subtitle_fontsize: int = 60  # 56 → 60 (더 크게)
+    subtitle_color: str = "#FFD700"  # 금색 (gold)
     subtitle_stroke_color: str = "black"
-    subtitle_stroke_width: int = 2
-    subtitle_position: Tuple[str, str] = ("center", 0.8)  # (x, y_ratio)
-    subtitle_bottom_margin: int = 320  # 화면 하단에서 자막까지의 여백
-    subtitle_text_margin: int = 20  # 텍스트 상하 패딩 (stroke 짤림 방지)
-    subtitle_wrap_width: int = 22  # 줄바꿈 문자 수
+    subtitle_stroke_width: int = 3
+    subtitle_position: Tuple[str, str] = ("center", 0.8)
+    subtitle_bottom_margin: int = 280  # YouTube UI 고려
+    subtitle_text_margin: int = 20
+    subtitle_wrap_width: int = 16  # 18 → 16 (더 짧은 줄, 가독성 향상)
+    subtitle_max_width_ratio: float = 0.85  # 화면 너비의 85%
 
     # 하이라이트 (명언 강조)
-    highlight_color: str = "gold"
-    highlight_fontsize: int = 52
+    highlight_color: str = "#FFD700"  # 금색
+    highlight_fontsize: int = 64
 
 
 class VideoComposer:
@@ -86,7 +212,7 @@ class VideoComposer:
         audio = AudioFileClip(str(audio_path))
         duration = audio.duration
 
-        # 2. B-roll 연결
+        # 2. B-roll 연결 (각 클립은 _concatenate_broll에서 이미 리사이즈됨)
         if broll_clips:
             video = self._concatenate_broll(broll_clips, duration)
         else:
@@ -97,14 +223,14 @@ class VideoComposer:
                 duration=duration
             )
 
-        # 3. 9:16 리사이즈 (세로 영상)
-        video = self._resize_to_vertical(video)
+        # 2.5. 시네마틱 효과 적용 (AI Slop 회피)
+        video = self._apply_cinematic_effects(video)
 
-        # 4. 자막 오버레이
+        # 3. 자막 오버레이
         if srt_path and Path(srt_path).exists():
             video = self._add_subtitles(video, srt_path)
 
-        # 5. 오디오 합성
+        # 4. 오디오 합성
         if bgm_path and Path(bgm_path).exists():
             final_audio = self._mix_audio(audio, bgm_path, duration)
             video = video.with_audio(final_audio)
@@ -112,16 +238,30 @@ class VideoComposer:
             video = video.with_audio(audio)
 
         # 6. 렌더링 (멀티스레드 최적화)
-        video.write_videofile(
-            str(output_path),
-            fps=self.config.fps,
-            codec=self.config.codec,
-            audio_codec=self.config.audio_codec,
-            bitrate=self.config.bitrate,
-            threads=OPTIMAL_THREADS,
-            preset='medium',
-            logger=None  # 진행률 표시 끄기
-        )
+        # Windows 임시 파일 문제 해결: 명시적 temp_audiofile 경로 지정
+        # AAC 코덱 사용 시 .m4a 확장자 필요
+        temp_audio_path = output_path.parent / f"temp_audio_{output_path.stem}.m4a"
+
+        try:
+            video.write_videofile(
+                str(output_path),
+                fps=self.config.fps,
+                codec=self.config.codec,
+                audio_codec=self.config.audio_codec,
+                bitrate=self.config.bitrate,
+                threads=OPTIMAL_THREADS,
+                preset='medium',
+                temp_audiofile=str(temp_audio_path),
+                remove_temp=True,
+                logger=None  # 진행률 표시 끄기
+            )
+        finally:
+            # 정리 (temp 파일이 남아있으면 삭제)
+            if temp_audio_path.exists():
+                try:
+                    temp_audio_path.unlink()
+                except:
+                    pass
 
         # 정리
         video.close()
@@ -132,9 +272,10 @@ class VideoComposer:
     def _concatenate_broll(
         self,
         clips: List[BrollClip],
-        target_duration: float
+        target_duration: float,
+        max_clip_duration: float = 6.0  # 클립당 최대 6초 (다양성 확보)
     ) -> VideoFileClip:
-        """B-roll 클립 연결"""
+        """B-roll 클립 연결 - 각 클립을 9:16으로 리사이즈, 최대 길이 제한"""
         video_clips = []
         total_duration = 0.0
 
@@ -151,8 +292,13 @@ class VideoComposer:
                     clip.close()
                     break
 
-                if clip.duration > remaining:
-                    clip = clip.subclipped(0, remaining)
+                # 클립 길이 제한 (다양성을 위해 최대 6초)
+                use_duration = min(clip.duration, max_clip_duration, remaining)
+                if clip.duration > use_duration:
+                    clip = clip.subclipped(0, use_duration)
+
+                # 각 클립을 풀스크린으로 리사이즈 (검은 띠 방지)
+                clip = self._resize_to_vertical(clip)
 
                 video_clips.append(clip)
                 total_duration += clip.duration
@@ -217,6 +363,39 @@ class VideoComposer:
             y1 = y_center - target_h // 2
             y2 = y1 + target_h
             video = video.cropped(x1=0, x2=target_w, y1=y1, y2=y2)
+
+        return video
+
+    def _apply_cinematic_effects(self, video) -> VideoFileClip:
+        """
+        시네마틱 효과 적용 - AI Slop 회피 핵심
+        1. 색 보정 (Stoic Navy + Gold)
+        2. 비네팅 (화면 가장자리 어둡게)
+        3. 필름 그레인 (디지털 매끄러움 제거)
+        """
+        # 1. 색 보정
+        if self.config.color_grade_preset and self.config.color_grade_preset != 'none':
+            try:
+                video = apply_color_grade(video, self.config.color_grade_preset)
+                logger.debug(f"색 보정 적용: {self.config.color_grade_preset}")
+            except Exception as e:
+                logger.warning(f"색 보정 실패: {e}")
+
+        # 2. 비네팅
+        if self.config.enable_vignette:
+            try:
+                video = add_vignette(video, self.config.vignette_intensity)
+                logger.debug(f"비네팅 적용: intensity={self.config.vignette_intensity}")
+            except Exception as e:
+                logger.warning(f"비네팅 실패: {e}")
+
+        # 3. 필름 그레인 (마지막에 적용)
+        if self.config.enable_film_grain:
+            try:
+                video = add_film_grain(video, self.config.film_grain_intensity)
+                logger.debug(f"필름 그레인 적용: intensity={self.config.film_grain_intensity}")
+            except Exception as e:
+                logger.warning(f"필름 그레인 실패: {e}")
 
         return video
 

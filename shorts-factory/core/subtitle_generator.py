@@ -34,11 +34,12 @@ class SubtitleEntry:
 
 @dataclass
 class SubtitleConfig:
-    """자막 설정"""
-    max_chars_per_line: int = 15  # 한글 기준
-    max_lines: int = 2
-    min_duration: float = 0.5  # 최소 표시 시간 (초)
-    gap_between: float = 0.05  # 자막 간 간격 (초)
+    """자막 설정 - 짧고 읽기 쉬운 자막"""
+    max_chars_per_line: int = 12  # 한 줄 최대 12자 (가독성 향상)
+    max_lines: int = 2            # 최대 2줄
+    min_duration: float = 1.0     # 최소 1초 표시 (읽을 시간)
+    gap_between: float = 0.05     # 자막 간 간격 (초)
+    split_long_sentences: bool = True  # 긴 문장 자동 분리
 
 
 class SubtitleGenerator:
@@ -95,19 +96,31 @@ class SubtitleGenerator:
         return self._write_srt(entries, output_path)
 
     def _split_sentences(self, text: str) -> List[str]:
-        """문장 분리"""
+        """문장 분리 - 짧은 단위로 분리"""
         # 섹션 마커 제거 [훅], [명언] 등
         text = re.sub(r'\[.*?\]', '', text)
 
         # 줄바꿈을 공백으로
         text = text.replace('\n', ' ')
 
-        # 문장 분리 (한국어/영어 모두 지원)
-        # 마침표, 물음표, 느낌표로 분리
+        # 1차: 마침표, 물음표, 느낌표로 분리
         sentences = re.split(r'(?<=[.!?])\s+', text)
 
         # 빈 문장 제거 및 정리
         sentences = [s.strip() for s in sentences if s.strip()]
+
+        # 2차: 긴 문장 추가 분리 (쉼표, 접속사 기준)
+        if self.config.split_long_sentences:
+            split_sentences = []
+            for sentence in sentences:
+                if len(sentence) > 25:  # 25자 이상이면 분리
+                    # 쉼표, 접속사로 분리
+                    parts = re.split(r'(?<=[,，])\s*|(?=그리고|하지만|그러나|그래서|왜냐하면)', sentence)
+                    parts = [p.strip() for p in parts if p.strip()]
+                    split_sentences.extend(parts)
+                else:
+                    split_sentences.append(sentence)
+            sentences = split_sentences
 
         return sentences
 
