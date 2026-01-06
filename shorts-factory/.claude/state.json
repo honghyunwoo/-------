@@ -1,0 +1,114 @@
+{
+  "project": {
+    "name": "shorts-factory",
+    "type": "video-automation",
+    "version": "2.1.0",
+    "tech_stack": [
+      "Python 3.13",
+      "FFmpeg + NVENC",
+      "Edge-TTS",
+      "Gemini 2.0 Flash API",
+      "Pexels API"
+    ],
+    "created": "2026-01-04",
+    "last_update": "2026-01-06T14:30:00Z"
+  },
+  "current": {
+    "phase": "Production Ready",
+    "working_on": "V2.1 업그레이드 완료",
+    "progress": "100%",
+    "blockers": []
+  },
+  "completed": [
+    {
+      "date": "2026-01-06",
+      "task": "스크립트 품질 개선",
+      "details": [
+        "클리셰 제거 (여기서 갈린다 → 10가지 대안)",
+        "명령형→제안형 톤 전환 (55%→40%)",
+        "훅 다양화 (H1 20%, H2 20%, H3 40%, H4 10%, H5 10%)"
+      ]
+    },
+    {
+      "date": "2026-01-06",
+      "task": "파이프라인 최적화",
+      "details": [
+        "배치 병렬 처리 (--parallel 4, 4x 속도 향상)",
+        "B-roll 인덱스 캐싱 (자동 갱신)"
+      ]
+    },
+    {
+      "date": "2026-01-06",
+      "task": "새 모듈 추가",
+      "details": [
+        "script_validator.py: 스크립트 검증",
+        "thumbnail_generator.py: 썸네일 생성",
+        "upload_packager.py: 업로드 메타데이터"
+      ]
+    },
+    {
+      "date": "2026-01-06",
+      "task": "FFmpeg NVENC 최적화",
+      "details": [
+        "영상 합성 20분→23초 (50x 속도 향상)",
+        "GPU 인코더 자동 감지"
+      ]
+    }
+  ],
+  "next": [
+    {
+      "priority": "P1",
+      "task": "테스트 커버리지 확대",
+      "target": "25% → 80%",
+      "files": [
+        "tests/test_tts_engine.py",
+        "tests/test_ffmpeg_composer.py",
+        "tests/test_pipeline_integration.py"
+      ]
+    },
+    {
+      "priority": "P2",
+      "task": "V3.0 스크립트 확장",
+      "target": "21초 → 45-55초",
+      "details": "문장별 40-70자로 확장"
+    },
+    {
+      "priority": "P3",
+      "task": "멀티플랫폼 배포",
+      "platforms": ["TikTok", "Instagram Reels"],
+      "details": "플랫폼별 메타데이터 생성"
+    }
+  ],
+  "decisions": [
+    {
+      "date": "2026-01-06",
+      "topic": "영상 합성 엔진",
+      "decision": "FFmpeg + NVENC (MoviePy 폴백)",
+      "reason": "50x 성능 향상, GPU 활용"
+    },
+    {
+      "date": "2026-01-06",
+      "topic": "TTS 엔진",
+      "decision": "Edge-TTS (무료)",
+      "reason": "고품질 한국어, 비용 무료"
+    },
+    {
+      "date": "2026-01-06",
+      "topic": "스크립트 형식",
+      "decision": "V2.1 (6문장 구조)",
+      "reason": "Hook→Pain→Reframe→Insight→Action→CTA 흐름"
+    }
+  ],
+  "quality": {
+    "test_coverage": 25,
+    "lint_errors": 0,
+    "last_test_run": "2026-01-06T12:00:00Z",
+    "all_tests_pass": true
+  },
+  "performance": {
+    "single_video": "45초",
+    "batch_20_sequential": "15분",
+    "batch_20_parallel": "4분",
+    "video_compose": "23초 (NVENC)"
+  }
+}

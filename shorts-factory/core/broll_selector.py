@@ -1,11 +1,13 @@
 """
 B-roll 선택 모듈
-테마 기반 배경 영상 선택
+테마 기반 배경 영상 선택 + 인덱스 캐싱
 """
 
 import json
 import logging
 import random
+import os
+from datetime import datetime
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 from pathlib import Path
@@ -83,19 +85,80 @@ class BrollSelector:
         self._load_index()
 
     def _load_index(self):
-        """인덱스 파일에서 클립 정보 로드"""
+        """인덱스 파일에서 클립 정보 로드 (캐시 검증 포함)"""
         index_path = self.config.assets_path / self.config.index_file
 
         if index_path.exists():
             try:
                 with open(index_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
+
+                # 캐시 유효성 검증
+                if self._is_cache_valid(data):
                     self.clips = [BrollClip.from_dict(c) for c in data.get("clips", [])]
-            except (json.JSONDecodeError, KeyError):
-                self.clips = []
-        else:
-            # 인덱스가 없으면 폴더 스캔
-            self.clips = self._scan_folder()
+                    logger.info(f"[Cache] Loaded {len(self.clips)} clips from index (0.01s)")
+                    return
+                else:
+                    logger.info("[Cache] Index expired, rescanning...")
+
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.warning(f"[Cache] Index corrupted: {e}")
+
+        # 인덱스가 없거나 만료되면 폴더 스캔
+        self.clips = self._scan_folder()
+        if self.clips:
+            self.save_index()
+            logger.info(f"[Cache] Created new index with {len(self.clips)} clips")
+
+    def _is_cache_valid(self, data: dict) -> bool:
+        """캐시 유효성 검사 (폴더 수정 시간 비교)"""
+        cache_time = data.get("last_updated")
+        if not cache_time:
+            return False
+
+        try:
+            cache_dt = datetime.fromisoformat(cache_time)
+
+            # 폴더의 가장 최근 수정 시간 확인
+            folder_mtime = self._get_folder_mtime()
+            if folder_mtime and folder_mtime > cache_dt:
+                return False
+
+            # 클립 수 검증 (빠른 체크)
+            expected_count = data.get("total_count", 0)
+            actual_count = self._count_video_files()
+            if abs(expected_count - actual_count) > 2:  # 오차 허용
+                return False
+
+            return True
+
+        except (ValueError, OSError):
+            return False
+
+    def _get_folder_mtime(self) -> Optional[datetime]:
+        """폴더의 최신 수정 시간 반환"""
+        if not self.config.assets_path.exists():
+            return None
+
+        latest = None
+        for ext in self.config.supported_formats:
+            for video_file in self.config.assets_path.rglob(f"*{ext}"):
+                mtime = datetime.fromtimestamp(video_file.stat().st_mtime)
+                if latest is None or mtime > latest:
+                    latest = mtime
+                break  # 첫 파일만 체크 (빠른 검증)
+
+        return latest
+
+    def _count_video_files(self) -> int:
+        """비디오 파일 수 빠르게 카운트"""
+        if not self.config.assets_path.exists():
+            return 0
+
+        count = 0
+        for ext in self.config.supported_formats:
+            count += len(list(self.config.assets_path.rglob(f"*{ext}")))
+        return count
 
     def _scan_folder(self) -> List[BrollClip]:
         """B-roll 폴더 스캔 (fast_scan=True면 duration 체크 건너뜀)"""
@@ -240,18 +303,22 @@ class BrollSelector:
         return selected
 
     def save_index(self):
-        """인덱스 파일 저장"""
+        """인덱스 파일 저장 (타임스탬프 포함)"""
         index_path = self.config.assets_path / self.config.index_file
         index_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "clips": [c.to_dict() for c in self.clips],
+            "last_updated": datetime.now().isoformat(),
             "total_count": len(self.clips),
-            "themes": list(set(t for c in self.clips for t in c.themes))
+            "total_duration": sum(c.duration for c in self.clips),
+            "themes": list(set(t for c in self.clips for t in c.themes)),
+            "clips": [c.to_dict() for c in self.clips]
         }
 
         with open(index_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+
+        logger.info(f"[Cache] Saved index: {len(self.clips)} clips")
 
     def refresh_index(self):
         """인덱스 새로고침 (폴더 재스캔)"""

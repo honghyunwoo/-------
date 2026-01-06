@@ -1,6 +1,7 @@
 # Shorts Factory API Reference
 
 > **핵심 모듈 API 문서**
+> **버전**: 2.1.0 | **최종 업데이트**: 2026-01-06
 
 ---
 
@@ -12,7 +13,11 @@
 4. [SubtitleGenerator](#subtitlegenerator)
 5. [BrollSelector](#brollselector)
 6. [VideoComposer](#videocomposer)
-7. [MetadataGenerator](#metadatagenerator)
+7. [FFmpegComposer](#ffmpegcomposer) *(NEW)*
+8. [ScriptValidator](#scriptvalidator) *(NEW)*
+9. [ThumbnailGenerator](#thumbnailgenerator) *(NEW)*
+10. [UploadPackager](#uploadpackager) *(NEW)*
+11. [MetadataGenerator](#metadatagenerator)
 
 ---
 
@@ -374,6 +379,276 @@ class QuickComposer:
         output_name: str = None
     ) -> Path:
         """간단한 텍스트 영상 생성"""
+```
+
+---
+
+## FFmpegComposer
+
+**파일**: `core/ffmpeg_composer.py`
+
+FFmpeg 직접 호출 기반 고속 영상 합성 (GPU 가속).
+
+### FFmpegComposer
+
+```python
+class FFmpegComposer:
+    def __init__(self, preset: str = "default"):
+        """FFmpeg 합성기 초기화
+
+        Args:
+            preset: 인코딩 프리셋 (config/preset_v1.json)
+        """
+
+    def compose(
+        self,
+        audio_path: Path,
+        broll_clips: List[Path],
+        srt_path: Optional[Path] = None,
+        output_path: Path = None
+    ) -> Tuple[Path, float]:
+        """영상 합성 (4단계 파이프라인)
+
+        1. B-roll concat + scale/crop (9:16)
+        2. Audio merge (-shortest)
+        3. Subtitles (SRT → ASS 변환)
+        4. Effects (colorbalance, vignette, noise)
+
+        Returns:
+            (output_path, elapsed_seconds)
+        """
+
+def detect_encoder() -> str:
+    """GPU 인코더 자동 감지
+
+    Returns:
+        'h264_nvenc' (NVIDIA) | 'h264_qsv' (Intel) |
+        'h264_amf' (AMD) | 'libx264' (CPU)
+    """
+```
+
+### 사용 예시
+
+```python
+from core.ffmpeg_composer import FFmpegComposer, detect_encoder
+
+# 인코더 확인
+print(detect_encoder())  # h264_nvenc
+
+# 영상 합성
+composer = FFmpegComposer()
+output, elapsed = composer.compose(
+    audio_path=Path("audio.mp3"),
+    broll_clips=[Path("clip1.mp4"), Path("clip2.mp4")],
+    srt_path=Path("subtitle.srt"),
+    output_path=Path("output/video.mp4")
+)
+print(f"합성 완료: {elapsed:.1f}초")  # 합성 완료: 23.6초
+```
+
+---
+
+## ScriptValidator
+
+**파일**: `core/script_validator.py`
+
+V2.1 스크립트 품질 검증.
+
+### ValidationResult (Dataclass)
+
+```python
+@dataclass
+class ValidationResult:
+    is_valid: bool              # 검증 통과 여부
+    errors: List[str]           # 에러 목록
+    warnings: List[str]         # 경고 목록
+    score: float                # 품질 점수 (0-100)
+```
+
+### ScriptValidator
+
+```python
+class ScriptValidator:
+    # 검증 규칙
+    CLICHE_PATTERNS = ["여기서 갈린다", "시작해보자", ...]
+    COMMAND_PATTERNS = ["~해보자", "~하자", ...]
+
+    def __init__(self):
+        """스크립트 검증기 초기화"""
+
+    def validate(self, script: dict) -> ValidationResult:
+        """스크립트 검증
+
+        검증 항목:
+        - 필수 필드 존재 (s1_hook ~ s6_loop_cta)
+        - 클리셰 사용 여부
+        - 명령형 톤 비율
+        - 문장별 글자 수
+        - 훅 타입 다양성
+        """
+
+    def check_cliches(self, text: str) -> List[str]:
+        """클리셰 패턴 검사"""
+
+    def check_tone(self, text: str) -> float:
+        """명령형 톤 비율 계산 (0.0 ~ 1.0)"""
+```
+
+### 사용 예시
+
+```python
+from core.script_validator import ScriptValidator
+
+validator = ScriptValidator()
+result = validator.validate(script_dict)
+
+if result.is_valid:
+    print(f"✅ 검증 통과 (점수: {result.score})")
+else:
+    for error in result.errors:
+        print(f"❌ {error}")
+```
+
+---
+
+## ThumbnailGenerator
+
+**파일**: `core/thumbnail_generator.py`
+
+훅 텍스트 기반 썸네일 자동 생성.
+
+### ThumbnailConfig (Dataclass)
+
+```python
+@dataclass
+class ThumbnailConfig:
+    width: int = 1080           # 너비
+    height: int = 1920          # 높이 (9:16)
+    font_path: str = "..."      # 폰트 경로
+    font_size: int = 72         # 폰트 크기
+    text_color: str = "#FFFFFF" # 텍스트 색상
+    bg_color: str = "#1a1a2e"   # 배경 색상
+    overlay_opacity: float = 0.6 # 오버레이 투명도
+```
+
+### ThumbnailGenerator
+
+```python
+class ThumbnailGenerator:
+    def __init__(self, config: ThumbnailConfig = None):
+        """썸네일 생성기 초기화"""
+
+    def generate(
+        self,
+        hook_text: str,
+        background_image: Optional[Path] = None,
+        output_path: Path = None
+    ) -> Path:
+        """썸네일 생성
+
+        Args:
+            hook_text: 훅 텍스트 (s1_hook)
+            background_image: 배경 이미지 (없으면 그라데이션)
+            output_path: 출력 경로
+
+        Returns:
+            썸네일 이미지 경로
+        """
+
+    def generate_from_video(
+        self,
+        video_path: Path,
+        hook_text: str,
+        frame_time: float = 0.5
+    ) -> Path:
+        """영상에서 프레임 추출 후 썸네일 생성"""
+```
+
+### 사용 예시
+
+```python
+from core.thumbnail_generator import ThumbnailGenerator
+
+generator = ThumbnailGenerator()
+thumbnail = generator.generate(
+    hook_text="왜 할 일 목록만 보면\n책상 정리가 하고 싶을까?",
+    output_path=Path("output/thumbnail.png")
+)
+```
+
+---
+
+## UploadPackager
+
+**파일**: `core/upload_packager.py`
+
+YouTube 업로드용 메타데이터 패키징.
+
+### UploadPackage (Dataclass)
+
+```python
+@dataclass
+class UploadPackage:
+    video_path: Path            # 영상 경로
+    thumbnail_path: Path        # 썸네일 경로
+    title: str                  # 제목
+    description: str            # 설명
+    tags: List[str]             # 태그
+    category: str               # 카테고리
+    visibility: str = "private" # 공개 설정
+```
+
+### UploadPackager
+
+```python
+class UploadPackager:
+    def __init__(self, output_dir: Path = None):
+        """업로드 패키저 초기화"""
+
+    def package(
+        self,
+        script: dict,
+        video_path: Path,
+        thumbnail_path: Path
+    ) -> UploadPackage:
+        """업로드 패키지 생성
+
+        자동 생성 항목:
+        - 제목: 훅 텍스트 기반
+        - 설명: 스크립트 요약 + 해시태그
+        - 태그: 카테고리 + 키워드
+        """
+
+    def export_info(
+        self,
+        package: UploadPackage,
+        output_path: Path = None
+    ) -> Path:
+        """upload_info.txt 파일 생성"""
+
+    def validate_metadata(self, package: UploadPackage) -> bool:
+        """메타데이터 유효성 검사
+
+        - 제목: 100자 이하
+        - 설명: 5000자 이하
+        - 태그: 500자 이하
+        """
+```
+
+### 사용 예시
+
+```python
+from core.upload_packager import UploadPackager
+
+packager = UploadPackager(output_dir=Path("output/"))
+package = packager.package(
+    script=script_dict,
+    video_path=Path("output/video.mp4"),
+    thumbnail_path=Path("output/thumbnail.png")
+)
+
+# upload_info.txt 생성
+packager.export_info(package)
 ```
 
 ---

@@ -178,21 +178,65 @@ class SubtitleGenerator:
             )
         return entries
 
+    # 분리 금지 패턴: 앞 단어 + 뒷 단어를 붙여서 유지
+    # (앞 단어 끝, 뒷 단어 시작) 조합
+    KEEP_TOGETHER_PATTERNS = [
+        # 관형사형 + 의존명사 (할 일, 볼 것, 갈 곳 등)
+        ("할", "일"), ("볼", "것"), ("갈", "곳"), ("쓸", "곳"),
+        ("할", "것"), ("볼", "일"), ("할", "수"), ("될", "수"),
+        ("알", "수"), ("갈", "수"), ("올", "수"), ("볼", "수"),
+        # 숫자 + 단위
+        ("1", "분"), ("2", "분"), ("3", "분"), ("5", "분"), ("10", "분"),
+        ("1", "초"), ("2", "초"), ("5", "초"), ("10", "초"),
+        ("1", "개"), ("2", "개"), ("3", "개"),
+        ("한", "번"), ("두", "번"), ("세", "번"),
+        ("한", "개"), ("두", "개"), ("세", "개"),
+        # 부사 + 동사/형용사
+        ("더", "쉽"), ("더", "빨"), ("더", "좋"), ("더", "나"),
+        ("아주", "작"), ("아주", "쉬"), ("아주", "좋"),
+        # 일반적 복합어
+        ("그게", "시작"), ("아직", "포기"),
+    ]
+
+    def _should_keep_together(self, word1: str, word2: str) -> bool:
+        """두 단어를 붙여야 하는지 확인"""
+        for pattern1, pattern2 in self.KEEP_TOGETHER_PATTERNS:
+            if word1.endswith(pattern1) or word1 == pattern1:
+                if word2.startswith(pattern2) or word2 == pattern2:
+                    return True
+        return False
+
     def _wrap_text(
         self,
         text: str,
         max_chars: int,
         max_lines: int
     ) -> str:
-        """텍스트 줄바꿈"""
+        """텍스트 줄바꿈 - 한국어 복합어 고려"""
         if len(text) <= max_chars:
             return text
 
         words = text.split()
+        if not words:
+            return text
+
+        # 1단계: 분리 금지 단어쌍 병합
+        merged_words = []
+        i = 0
+        while i < len(words):
+            if i + 1 < len(words) and self._should_keep_together(words[i], words[i + 1]):
+                # 두 단어를 공백 포함해서 병합
+                merged_words.append(f"{words[i]} {words[i + 1]}")
+                i += 2
+            else:
+                merged_words.append(words[i])
+                i += 1
+
+        # 2단계: 줄바꿈 적용
         lines = []
         current_line = ""
 
-        for word in words:
+        for word in merged_words:
             test_line = f"{current_line} {word}".strip()
 
             if len(test_line) <= max_chars:
@@ -205,8 +249,8 @@ class SubtitleGenerator:
                 # 최대 줄 수 체크
                 if len(lines) >= max_lines - 1:
                     # 나머지 단어들 모두 현재 줄에
-                    remaining_idx = words.index(word)
-                    current_line = ' '.join(words[remaining_idx:])
+                    remaining_idx = merged_words.index(word)
+                    current_line = ' '.join(merged_words[remaining_idx:])
                     break
 
         if current_line:

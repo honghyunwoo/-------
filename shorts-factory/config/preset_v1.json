@@ -1,0 +1,71 @@
+{
+  "version": "v1",
+  "description": "Production preset for Shorts Factory",
+  "updated": "2026-01-06",
+
+  "video": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+
+  "encoding": {
+    "encoder": "auto",
+    "nvenc": {
+      "preset": "p4",
+      "rc": "vbr",
+      "cq": 26,
+      "maxrate": "6M",
+      "bufsize": "12M"
+    },
+    "cpu_fallback": {
+      "preset": "fast",
+      "crf": 24
+    },
+    "audio": {
+      "codec": "aac",
+      "bitrate": "128k"
+    }
+  },
+
+  "effects": {
+    "color_grade": {
+      "enabled": true,
+      "red_shift": 0.1,
+      "blue_shift": 0.05,
+      "saturation": 0.85,
+      "contrast": 1.12
+    },
+    "vignette": {
+      "enabled": true,
+      "angle": "PI/5"
+    },
+    "grain": {
+      "enabled": true,
+      "strength": 6
+    }
+  },
+
+  "subtitle": {
+    "font": "Malgun Gothic Bold",
+    "fontsize": 60,
+    "color": "&H00D7FF",
+    "outline_color": "&H000000",
+    "outline_width": 3,
+    "margin_bottom": 280,
+    "alignment": 2
+  },
+
+  "output": {
+    "folder_format": "{date}_{category}_{id:02d}",
+    "video_filename": "video.mp4",
+    "max_size_mb": 16,
+    "cleanup_temp": true
+  },
+
+  "batch": {
+    "skip_on_error": true,
+    "error_log": "errors.log",
+    "max_retries": 1
+  }
+}

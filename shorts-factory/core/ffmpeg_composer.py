@@ -12,12 +12,16 @@ MoviePy 대신 FFmpeg subprocess를 사용하여 20분 → 1분 이하로 단축
 import subprocess
 import shutil
 import time
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# 프로젝트 루트 경로
+PROJECT_ROOT = Path(__file__).parent.parent
 
 
 # =============================================================================
@@ -92,14 +96,15 @@ class FFmpegConfig:
     # 인코딩 (자동 감지)
     encoder: str = ""  # 빈 문자열이면 자동 감지
 
-    # NVENC 설정 (CQ 모드 - 품질 우선)
+    # NVENC 설정 (CQ 모드 - 파일 크기 최적화)
     nvenc_preset: str = "p4"  # p1(fastest)~p7(slowest), p4=balanced
-    nvenc_cq: int = 23  # Constant Quality (낮을수록 고품질)
-    nvenc_maxrate: str = "8M"
+    nvenc_cq: int = 26  # 26으로 올려서 12-16MB 목표
+    nvenc_maxrate: str = "6M"
+    nvenc_bufsize: str = "12M"
 
     # CPU 폴백 설정
     cpu_preset: str = "fast"
-    cpu_crf: int = 23
+    cpu_crf: int = 24
 
     # 오디오
     audio_codec: str = "aac"
@@ -116,7 +121,7 @@ class FFmpegConfig:
     vignette_angle: str = "PI/5"  # 비네팅 강도
 
     enable_grain: bool = True
-    grain_strength: int = 8  # 1-20, 무거우면 줄이기
+    grain_strength: int = 6  # 6으로 낮춰서 속도/크기 개선
 
     # 자막 (Stoic 스타일)
     subtitle_font: str = "Malgun Gothic Bold"
@@ -125,6 +130,68 @@ class FFmpegConfig:
     subtitle_outline_color: str = "&H000000"
     subtitle_outline_width: int = 3
     subtitle_margin_bottom: int = 280
+
+
+def load_preset(preset_name: str = "v1") -> FFmpegConfig:
+    """preset 파일에서 설정 로드"""
+    preset_path = PROJECT_ROOT / "config" / f"preset_{preset_name}.json"
+    if not preset_path.exists():
+        logger.warning(f"Preset {preset_name} not found, using defaults")
+        return FFmpegConfig()
+
+    with open(preset_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    config = FFmpegConfig()
+
+    # video
+    if 'video' in data:
+        config.width = data['video'].get('width', config.width)
+        config.height = data['video'].get('height', config.height)
+        config.fps = data['video'].get('fps', config.fps)
+
+    # encoding
+    if 'encoding' in data:
+        enc = data['encoding']
+        if 'nvenc' in enc:
+            config.nvenc_preset = enc['nvenc'].get('preset', config.nvenc_preset)
+            config.nvenc_cq = enc['nvenc'].get('cq', config.nvenc_cq)
+            config.nvenc_maxrate = enc['nvenc'].get('maxrate', config.nvenc_maxrate)
+            config.nvenc_bufsize = enc['nvenc'].get('bufsize', config.nvenc_bufsize)
+        if 'cpu_fallback' in enc:
+            config.cpu_preset = enc['cpu_fallback'].get('preset', config.cpu_preset)
+            config.cpu_crf = enc['cpu_fallback'].get('crf', config.cpu_crf)
+        if 'audio' in enc:
+            config.audio_codec = enc['audio'].get('codec', config.audio_codec)
+            config.audio_bitrate = enc['audio'].get('bitrate', config.audio_bitrate)
+
+    # effects
+    if 'effects' in data:
+        fx = data['effects']
+        if 'color_grade' in fx:
+            config.enable_color_grade = fx['color_grade'].get('enabled', config.enable_color_grade)
+            config.color_red_shift = fx['color_grade'].get('red_shift', config.color_red_shift)
+            config.color_blue_shift = fx['color_grade'].get('blue_shift', config.color_blue_shift)
+            config.saturation = fx['color_grade'].get('saturation', config.saturation)
+            config.contrast = fx['color_grade'].get('contrast', config.contrast)
+        if 'vignette' in fx:
+            config.enable_vignette = fx['vignette'].get('enabled', config.enable_vignette)
+            config.vignette_angle = fx['vignette'].get('angle', config.vignette_angle)
+        if 'grain' in fx:
+            config.enable_grain = fx['grain'].get('enabled', config.enable_grain)
+            config.grain_strength = fx['grain'].get('strength', config.grain_strength)
+
+    # subtitle
+    if 'subtitle' in data:
+        sub = data['subtitle']
+        config.subtitle_font = sub.get('font', config.subtitle_font)
+        config.subtitle_fontsize = sub.get('fontsize', config.subtitle_fontsize)
+        config.subtitle_color = sub.get('color', config.subtitle_color)
+        config.subtitle_outline_color = sub.get('outline_color', config.subtitle_outline_color)
+        config.subtitle_outline_width = sub.get('outline_width', config.subtitle_outline_width)
+        config.subtitle_margin_bottom = sub.get('margin_bottom', config.subtitle_margin_bottom)
+
+    return config
 
 
 # =============================================================================
