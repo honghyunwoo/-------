@@ -101,14 +101,32 @@ python main.py stats
     └── 06_OPERATIONS_SOP.md
 ```
 
+## 🚀 FFmpeg + NVENC 고속 렌더링
+
+**GPU 인코딩으로 영상 합성 50배 가속** (20분 → 23초)
+
+```bash
+# NVENC 지원 확인
+python -c "from core.ffmpeg_composer import detect_encoder; print(detect_encoder())"
+# 출력: h264_nvenc (NVIDIA), h264_qsv (Intel), libx264 (CPU)
+
+# FFmpeg 테스트 (단일 영상)
+python scripts/test_ffmpeg.py --id 1
+
+# 배치 생성 (20개 파일럿)
+python scripts/batch_generate.py --all
+```
+
+**참고**: FFmpeg PATH 설정 불필요 - imageio_ffmpeg 바이너리 자동 사용
+
 ## 🛠️ 기술 스택
 
 - **언어**: Python 3.11+
 - **LLM**: Google Gemini API (스크립트/메타데이터 생성)
 - **TTS**: Edge TTS (한국어/영어, 무료)
-- **영상**: MoviePy 2.x
+- **영상**: FFmpeg + NVENC (GPU), MoviePy (폴백)
 - **B-roll**: Pexels API (무료, 저작권 안전)
-- **자막**: SRT 기반 (타이밍 동기화)
+- **자막**: SRT/ASS 기반 (FFmpeg 네이티브 렌더링)
 
 ## 📖 문서
 

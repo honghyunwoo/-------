@@ -41,3 +41,16 @@ assets/b-roll/broll_index.json
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Temp files (FFmpeg processing)
+**/temp/
+*.tmp
+
+# B-roll download tracking (regenerable)
+assets/b-roll/downloaded_ids.json
+
+# Review captures (manual testing)
+review_captures/
+
+# Windows temp
+nul
